@@ -37,12 +37,13 @@
             background: #000;
             border: 2px solid #00ff41;
             margin-bottom: 20px;
+            overflow: hidden;
         }
         video {
             width: 100%;
             height: 100%;
             object-fit: cover;
-            opacity: 0.6; /* 讓畫面暗一點比較帥 */
+            transform: scaleX(-1); /* 鏡像翻轉，讓操作比較直覺 */
         }
         canvas {
             position: absolute;
@@ -57,6 +58,7 @@
             padding: 15px;
             border: 1px solid #30363d;
             margin-bottom: 20px;
+            box-sizing: border-box;
         }
         .emotion-meter {
             font-size: 1.2em;
@@ -67,6 +69,7 @@
             color: #fff;
             font-size: 0.9em;
             line-height: 1.4;
+            min-height: 40px;
         }
 
         /* 右側：程式碼編輯與執行 */
@@ -96,6 +99,10 @@
             font-family: 'Courier New', monospace;
             font-size: 16px;
             resize: none;
+            outline: none;
+        }
+        #code-editor:focus {
+            border-color: #00ff41;
         }
 
         /* 控制按鈕 */
@@ -112,9 +119,11 @@
             cursor: pointer;
             font-size: 16px;
             border-radius: 5px;
+            transition: 0.2s;
         }
         button:hover { background: #2ea043; }
         button.secondary { background: #1f6feb; }
+        button.secondary:hover { background: #388bfd; }
 
         /* 輸出結果 */
         #output {
@@ -135,18 +144,20 @@
     <div class="panel-left">
         <h3>STATUS MONITOR</h3>
         <div id="video-container">
-            <video id="video" autoplay muted></video>
+            <video id="video" autoplay muted playsinline></video>
         </div>
         
         <div class="status-box">
-            <div>當前情緒: <span id="current-emotion" class="emotion-meter" style="color: yellow;">偵測中...</span></div>
+            <div>模型狀態: <span id="model-status" style="color: orange;">載入中...</span></div>
             <hr style="border-color: #333;">
+            <div>當前情緒: <span id="current-emotion" class="emotion-meter" style="color: gray;">等待偵測</span></div>
+            <br>
             <div>AI 導師建議 (RAG):</div>
-            <div id="ai-feedback" class="ai-message">系統連線正常。等待學習者操作...</div>
+            <div id="ai-feedback" class="ai-message">系統連線中...</div>
         </div>
 
-        <div style="font-size: 0.8em; color: gray;">
-            *隱私聲明：影像僅在瀏覽器端處理，不會上傳至伺服器。
+        <div style="font-size: 0.8em; color: gray; text-align: center;">
+            *隱私聲明：影像僅在瀏覽器端運算<br>不會上傳至伺服器
         </div>
     </div>
 
@@ -172,131 +183,158 @@ while count > 0:
             <button class="secondary" onclick="askAI()">求助 AI (Simulated)</button>
         </div>
 
-        <div id="output">執行結果將顯示於此...</div>
+        <div id="output">環境初始化中...</div>
     </div>
 
     <script>
-        // --- 1. 初始化設定 ---
+        // --- 1. 全域變數設定 ---
         const video = document.getElementById('video');
         const emotionSpan = document.getElementById('current-emotion');
         const aiFeedback = document.getElementById('ai-feedback');
+        const modelStatus = document.getElementById('model-status');
+        const outputDiv = document.getElementById('output');
+        
         let pyodide = null;
         let isFrustrated = false;
+        let isModelLoaded = false;
 
         // --- 2. 啟動 Pyodide (Python 環境) ---
         async function initPyodide() {
-            appendToOutput("正在載入 Python 環境 (Pyodide)... 請稍候");
-            pyodide = await loadPyodide();
-            appendToOutput("Python 環境已就緒！");
+            try {
+                outputDiv.innerText = "正在載入 Python 環境 (Pyodide)...";
+                pyodide = await loadPyodide();
+                outputDiv.innerText = "Python 環境已就緒！可以開始寫程式了。\n";
+            } catch (err) {
+                outputDiv.innerText = "Python 載入失敗: " + err;
+            }
         }
         initPyodide();
 
-        // --- 3. 啟動 Face-API 與 Webcam ---
-        // 注意：這裡假設 models 資料夾在同一層目錄
-        Promise.all([
-            faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
-            faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
-            faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
-            faceapi.nets.faceExpressionNet.loadFromUri('./models')
-        ]).then(startVideo).catch(err => {
-            console.error(err);
-            appendToOutput("模型載入失敗，請確認 'models' 資料夾是否存在且路徑正確。");
-        });
-
+        // --- 3. 啟動 Webcam (立即執行，不需要等模型) ---
         function startVideo() {
             navigator.mediaDevices.getUserMedia({ video: {} })
-                .then(stream => video.srcObject = stream)
-                .catch(err => console.error("無法存取鏡頭", err));
+                .then(stream => {
+                    video.srcObject = stream;
+                    console.log("攝影機已啟動");
+                })
+                .catch(err => {
+                    console.error("無法存取鏡頭:", err);
+                    alert("請允許瀏覽器使用攝影機權限，否則無法進行情緒偵測。");
+                });
         }
+        startVideo();
 
-        // 當影片開始播放，啟動偵測循環
+        // --- 4. 載入模型 (關鍵修正：使用遠端 CDN) ---
+        // 這裡直接使用 face-api.js 作者提供的線上模型庫，解決 404 問題
+        const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
+
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
+            faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_URL),
+            faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_URL),
+            faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
+        ]).then(() => {
+            console.log("AI 模型載入完成！");
+            isModelLoaded = true;
+            modelStatus.innerText = "已連線 (Online)";
+            modelStatus.style.color = "#00ff41";
+            aiFeedback.innerText = "視覺系統運作正常。請開始解題，我會觀察您的狀態。";
+        }).catch(err => {
+            console.error("模型載入失敗:", err);
+            modelStatus.innerText = "載入失敗";
+            modelStatus.style.color = "red";
+            aiFeedback.innerText = "無法連線到 AI 模型庫。請檢查網路連線。";
+        });
+
+        // --- 5. 循環偵測邏輯 ---
         video.addEventListener('play', () => {
             const canvas = faceapi.createCanvasFromMedia(video);
             document.getElementById('video-container').append(canvas);
             const displaySize = { width: video.clientWidth, height: video.clientHeight };
             faceapi.matchDimensions(canvas, displaySize);
 
+            // 每 500ms 偵測一次
             setInterval(async () => {
+                if (!isModelLoaded) return; // 模型沒好就先不做事
+
                 const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
                     .withFaceExpressions();
                 
+                // 清除舊的畫布
+                canvas.getContext('2d').clearRect(0, 0, canvas.width, canvas.height);
+                
                 if (detections.length > 0) {
-                    const expressions = detections[0].expressions;
+                    // 重新調整尺寸並畫出框框
+                    const resizedDetections = faceapi.resizeResults(detections, displaySize);
                     
-                    // 找出數值最高的情緒
+                    // 這裡把 drawDetections 註解掉，如果你不想看到臉上的方框
+                    // faceapi.draw.drawDetections(canvas, resizedDetections); 
+
+                    const expressions = detections[0].expressions;
                     const sorted = Object.entries(expressions).sort((a, b) => b[1] - a[1]);
-                    const topEmotion = sorted[0][0]; // 例如 'neutral', 'sad', 'happy'
+                    const topEmotion = sorted[0][0];
                     
                     updateEmotionUI(topEmotion);
+                } else {
+                    emotionSpan.innerText = "未偵測到人臉";
+                    emotionSpan.style.color = "gray";
                 }
-            }, 1000); // 每秒偵測一次
+            }, 500);
         });
 
-        // --- 4. 邏輯處理區 ---
-
+        // --- 6. 介面更新與模擬 RAG ---
         function updateEmotionUI(emotion) {
             let label = "";
             let color = "white";
 
-            // 簡單翻譯情緒並設定 AI 反應觸發點
+            // 翻譯並設定顏色
             switch(emotion) {
                 case 'happy': label = "開心/自信 (Flow)"; color = "#00ff41"; isFrustrated = false; break;
-                case 'sad': label = "挫折/困惑 (Sad)"; color = "red"; isFrustrated = true; break;
-                case 'angry': label = "憤怒/焦慮 (Angry)"; color = "red"; isFrustrated = true; break;
-                case 'neutral': label = "專注 (Neutral)"; color = "cyan"; isFrustrated = false; break;
-                default: label = emotion;
+                case 'sad': label = "挫折/困惑 (Sad)"; color = "#ff4444"; isFrustrated = true; break;
+                case 'angry': label = "憤怒/焦慮 (Angry)"; color = "#ff4444"; isFrustrated = true; break;
+                case 'neutral': label = "平靜/專注 (Neutral)"; color = "#00ffff"; isFrustrated = false; break;
+                case 'surprised': label = "驚訝 (Surprised)"; color = "yellow"; isFrustrated = false; break;
+                default: label = emotion; color = "white";
             }
 
             emotionSpan.textContent = label;
             emotionSpan.style.color = color;
-
-            // 如果偵測到挫折，自動給予簡單安撫
-            if (isFrustrated) {
-                aiFeedback.innerText = "偵測到您似乎有些困擾。深呼吸，如果卡住了，可以點擊「求助 AI」。";
-            }
         }
 
-        // 執行 Python 程式碼
         async function runPython() {
             if (!pyodide) return;
             const code = document.getElementById('code-editor').value;
-            const outputDiv = document.getElementById('output');
             
-            outputDiv.innerText = "執行中...";
+            outputDiv.innerText = ">>> 執行中...\n";
 
             try {
-                // 攔截 Python 的 print 輸出
+                // 重導向 stdout 以顯示 print 結果
                 pyodide.setStdout({ batched: (msg) => { outputDiv.innerText += msg + "\n"; } });
                 await pyodide.runPythonAsync(code);
             } catch (err) {
-                outputDiv.innerText = "錯誤: \n" + err;
-                // 如果代碼出錯，AI 也可以偵測到並給予反饋
-                aiFeedback.innerText = "程式碼拋出了錯誤！別擔心，這是學習的一部分。檢查一下語法？";
+                outputDiv.innerText += "錯誤 (Error): \n" + err;
+                aiFeedback.innerText = "程式碼發生錯誤！別灰心，看看錯誤訊息，是不是拼字錯了？";
             }
         }
 
-        // 模擬 RAG (因為沒有後端，這裡用寫死的邏輯模擬)
         function askAI() {
             const code = document.getElementById('code-editor').value;
-            
-            // 這裡模擬 RAG 檢索邏輯
-            let response = "正在分析您的程式碼與情緒狀態...";
+            aiFeedback.innerText = "AI 正在分析您的代碼邏輯與情緒數據...";
             
             setTimeout(() => {
-                if (code.includes("while") && !code.includes("- 1") && !code.includes("-= 1")) {
-                    // 模擬 RAG 知識庫：發現了無窮迴圈
-                    response = "[AI 導師]: 我看你在寫 While 迴圈。如果你不讓計數器減少，這個迴圈永遠不會停下來（無窮迴圈）。試試看加入 `count = count - 1`？";
+                let response = "";
+                
+                // 模擬 RAG 知識庫判斷
+                if (code.includes("while") && !code.includes("count = count - 1") && !code.includes("count -= 1")) {
+                    response = "⚠️ [AI 警告]: 我發現你的迴圈好像沒有讓 count 變小。這樣 count 永遠大於 0，會變成「無窮迴圈」當機喔！試著加入減法運算。";
                 } else if (isFrustrated) {
-                    response = "[AI 導師]: 你看起來有點挫折。這題的關鍵是「終止條件」。我們可以先休息一下，或者參考一下範例：`while x > 0:`";
+                    response = "😟 [AI 關懷]: 偵測到您似乎有點焦慮。這題的關鍵是「While」只要條件成立就會一直跑。建議您可以先用 `print(count)` 來觀察變數變化。";
                 } else {
-                    response = "[AI 導師]: 你目前的狀態看起來不錯！如果有特定問題，請嘗試修改程式碼後再執行。";
+                    response = "🤖 [AI 導師]: 目前看起來邏輯方向正確！如果執行結果不如預期，可以檢查一下縮排 (Indentation)。";
                 }
+                
                 aiFeedback.innerText = response;
-            }, 800);
-        }
-
-        function appendToOutput(text) {
-            document.getElementById('output').innerText += text + "\n";
+            }, 1000);
         }
     </script>
 </body>
