@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <title>Code Nexus: 情緒感知 Python 訓練</title>
+    <!-- 引入 Pyodide (Python 在瀏覽器執行) -->
+    <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
+    <!-- 引入 face-api.js (情緒偵測) -->
+    <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
+    
+    <style>
+        body {
+            background-color: #0d1117;
+            color: #00ff41; /* 駭客綠 */
+            font-family: 'Courier New', Courier, monospace;
+            margin: 0;
+            display: flex;
+            height: 100vh;
+            overflow: hidden;
+        }
+        
+        /* 左側：遊戲與情緒面板 */
+        .panel-left {
+            width: 30%;
+            border-right: 2px solid #333;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        /* 視訊預覽區 */
+        #video-container {
+            position: relative;
+            width: 100%;
+            height: 240px;
+            background: #000;
+            border: 2px solid #00ff41;
+            margin-bottom: 20px;
+        }
+        video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            opacity: 0.6; /* 讓畫面暗一點比較帥 */
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        /* 情緒狀態顯示 */
+        .status-box {
+            width: 100%;
+            background: #161b22;
+            padding: 15px;
+            border: 1px solid #30363d;
+            margin-bottom: 20px;
+        }
+        .emotion-meter {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+        .ai-message {
+            margin-top: 10px;
+            color: #fff;
+            font-size: 0.9em;
+            line-height: 1.4;
+        }
+
+        /* 右側：程式碼編輯與執行 */
+        .panel-right {
+            width: 70%;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        /* 題目區 */
+        .mission-box {
+            background: #1f2428;
+            padding: 15px;
+            border-radius: 5px;
+            margin-bottom: 10px;
+            color: #e6edf3;
+        }
+
+        /* 簡單的程式碼編輯器 */
+        #code-editor {
+            flex-grow: 1;
+            background-color: #0d1117;
+            color: #e6edf3;
+            border: 1px solid #30363d;
+            padding: 10px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            resize: none;
+        }
+
+        /* 控制按鈕 */
+        .controls {
+            margin-top: 10px;
+            display: flex;
+            gap: 10px;
+        }
+        button {
+            background: #238636;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            cursor: pointer;
+            font-size: 16px;
+            border-radius: 5px;
+        }
+        button:hover { background: #2ea043; }
+        button.secondary { background: #1f6feb; }
+
+        /* 輸出結果 */
+        #output {
+            height: 150px;
+            background: #000;
+            border: 1px solid #333;
+            margin-top: 10px;
+            padding: 10px;
+            color: #fff;
+            white-space: pre-wrap;
+            overflow-y: auto;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- 左側面板：情緒監控與 AI 導師 -->
+    <div class="panel-left">
+        <h3>STATUS MONITOR</h3>
+        <div id="video-container">
+            <video id="video" autoplay muted></video>
+        </div>
+        
+        <div class="status-box">
+            <div>當前情緒: <span id="current-emotion" class="emotion-meter" style="color: yellow;">偵測中...</span></div>
+            <hr style="border-color: #333;">
+            <div>AI 導師建議 (RAG):</div>
+            <div id="ai-feedback" class="ai-message">系統連線正常。等待學習者操作...</div>
+        </div>
+
+        <div style="font-size: 0.8em; color: gray;">
+            *隱私聲明：影像僅在瀏覽器端處理，不會上傳至伺服器。
+        </div>
+    </div>
+
+    <!-- 右側面板：Python 訓練場 -->
+    <div class="panel-right">
+        <div class="mission-box">
+            <strong>任務 01: While Loop 的考驗</strong><br>
+            請寫一個 Python 迴圈，從 5 倒數到 1，最後印出 "Blastoff!"。<br>
+            <small>提示：使用 while 變數 > 0 ...</small>
+        </div>
+
+        <textarea id="code-editor" spellcheck="false">
+# 在這裡輸入你的 Python 程式碼
+count = 5
+while count > 0:
+    print(count)
+    # 這裡好像少了一行程式碼...
+    # 如果不寫 count = count - 1，會發生什麼事？
+        </textarea>
+
+        <div class="controls">
+            <button onclick="runPython()">執行代碼 (Run)</button>
+            <button class="secondary" onclick="askAI()">求助 AI (Simulated)</button>
+        </div>
+
+        <div id="output">執行結果將顯示於此...</div>
+    </div>
+
+    <script>
+        // --- 1. 初始化設定 ---
+        const video = document.getElementById('video');
+        const emotionSpan = document.getElementById('current-emotion');
+        const aiFeedback = document.getElementById('ai-feedback');
+        let pyodide = null;
+        let isFrustrated = false;
+
+        // --- 2. 啟動 Pyodide (Python 環境) ---
+        async function initPyodide() {
+            appendToOutput("正在載入 Python 環境 (Pyodide)... 請稍候");
+            pyodide = await loadPyodide();
+            appendToOutput("Python 環境已就緒！");
+        }
+        initPyodide();
+
+        // --- 3. 啟動 Face-API 與 Webcam ---
+        // 注意：這裡假設 models 資料夾在同一層目錄
+        Promise.all([
+            faceapi.nets.tinyFaceDetector.loadFromUri('./models'),
+            faceapi.nets.faceLandmark68Net.loadFromUri('./models'),
+            faceapi.nets.faceRecognitionNet.loadFromUri('./models'),
+            faceapi.nets.faceExpressionNet.loadFromUri('./models')
+        ]).then(startVideo).catch(err => {
+            console.error(err);
+            appendToOutput("模型載入失敗，請確認 'models' 資料夾是否存在且路徑正確。");
+        });
+
+        function startVideo() {
+            navigator.mediaDevices.getUserMedia({ video: {} })
+                .then(stream => video.srcObject = stream)
+                .catch(err => console.error("無法存取鏡頭", err));
+        }
+
+        // 當影片開始播放，啟動偵測循環
+        video.addEventListener('play', () => {
+            const canvas = faceapi.createCanvasFromMedia(video);
+            document.getElementById('video-container').append(canvas);
+            const displaySize = { width: video.clientWidth, height: video.clientHeight };
+            faceapi.matchDimensions(canvas, displaySize);
+
+            setInterval(async () => {
+                const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions())
+                    .withFaceExpressions();
+                
+                if (detections.length > 0) {
+                    const expressions = detections[0].expressions;
+                    
+                    // 找出數值最高的情緒
+                    const sorted = Object.entries(expressions).sort((a, b) => b[1] - a[1]);
+                    const topEmotion = sorted[0][0]; // 例如 'neutral', 'sad', 'happy'
+                    
+                    updateEmotionUI(topEmotion);
+                }
+            }, 1000); // 每秒偵測一次
+        });
+
+        // --- 4. 邏輯處理區 ---
+
+        function updateEmotionUI(emotion) {
+            let label = "";
+            let color = "white";
+
+            // 簡單翻譯情緒並設定 AI 反應觸發點
+            switch(emotion) {
+                case 'happy': label = "開心/自信 (Flow)"; color = "#00ff41"; isFrustrated = false; break;
+                case 'sad': label = "挫折/困惑 (Sad)"; color = "red"; isFrustrated = true; break;
+                case 'angry': label = "憤怒/焦慮 (Angry)"; color = "red"; isFrustrated = true; break;
+                case 'neutral': label = "專注 (Neutral)"; color = "cyan"; isFrustrated = false; break;
+                default: label = emotion;
+            }
+
+            emotionSpan.textContent = label;
+            emotionSpan.style.color = color;
+
+            // 如果偵測到挫折，自動給予簡單安撫
+            if (isFrustrated) {
+                aiFeedback.innerText = "偵測到您似乎有些困擾。深呼吸，如果卡住了，可以點擊「求助 AI」。";
+            }
+        }
+
+        // 執行 Python 程式碼
+        async function runPython() {
+            if (!pyodide) return;
+            const code = document.getElementById('code-editor').value;
+            const outputDiv = document.getElementById('output');
+            
+            outputDiv.innerText = "執行中...";
+
+            try {
+                // 攔截 Python 的 print 輸出
+                pyodide.setStdout({ batched: (msg) => { outputDiv.innerText += msg + "\n"; } });
+                await pyodide.runPythonAsync(code);
+            } catch (err) {
+                outputDiv.innerText = "錯誤: \n" + err;
+                // 如果代碼出錯，AI 也可以偵測到並給予反饋
+                aiFeedback.innerText = "程式碼拋出了錯誤！別擔心，這是學習的一部分。檢查一下語法？";
+            }
+        }
+
+        // 模擬 RAG (因為沒有後端，這裡用寫死的邏輯模擬)
+        function askAI() {
+            const code = document.getElementById('code-editor').value;
+            
+            // 這裡模擬 RAG 檢索邏輯
+            let response = "正在分析您的程式碼與情緒狀態...";
+            
+            setTimeout(() => {
+                if (code.includes("while") && !code.includes("- 1") && !code.includes("-= 1")) {
+                    // 模擬 RAG 知識庫：發現了無窮迴圈
+                    response = "[AI 導師]: 我看你在寫 While 迴圈。如果你不讓計數器減少，這個迴圈永遠不會停下來（無窮迴圈）。試試看加入 `count = count - 1`？";
+                } else if (isFrustrated) {
+                    response = "[AI 導師]: 你看起來有點挫折。這題的關鍵是「終止條件」。我們可以先休息一下，或者參考一下範例：`while x > 0:`";
+                } else {
+                    response = "[AI 導師]: 你目前的狀態看起來不錯！如果有特定問題，請嘗試修改程式碼後再執行。";
+                }
+                aiFeedback.innerText = response;
+            }, 800);
+        }
+
+        function appendToOutput(text) {
+            document.getElementById('output').innerText += text + "\n";
+        }
+    </script>
+</body>
+</html>
