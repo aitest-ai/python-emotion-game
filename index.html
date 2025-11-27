@@ -2,8 +2,8 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus: 全方位感知系統 (v6.1 UX Fix)</title>
-    <!-- 核心庫 -->
+    <title>Code Nexus: AI 情境式學習系統 (v5.1)</title>
+    <!-- 引入核心庫 -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
@@ -11,18 +11,18 @@
     <style>
         :root {
             --bg-color: #050505;
-            --panel-bg: #0f0f0f;
-            --accent: #00ff9d;      /* 正常/開心 */
-            --secondary: #00aaff;   /* 下一步/生成 */
-            --warning: #ffaa00;     /* 警告/坐姿 */
-            --danger: #ff3333;      /* 壓力/錯誤 */
+            --panel-bg: #101010;
+            --accent: #00ff9d; /* Cyber Green */
+            --accent-dim: #005533;
+            --danger: #ff3333;
+            --warning: #ffcc00;
             --border: #333;
-            --text-main: #e0e0e0;
+            --text: #e0e0e0;
         }
 
         body {
             background-color: var(--bg-color);
-            color: var(--text-main);
+            color: var(--text);
             font-family: 'Segoe UI', 'Microsoft JhengHei', monospace;
             margin: 0;
             display: flex;
@@ -30,7 +30,7 @@
             overflow: hidden;
         }
 
-        /* --- 左側監控 --- */
+        /* --- 左側監控與聊天 --- */
         .panel-left {
             width: 320px;
             background: var(--panel-bg);
@@ -52,36 +52,40 @@
         }
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-        /* 數據儀表板 */
-        .metrics-box {
+        /* 攝影機狀態指示燈 */
+        .cam-indicator {
+            position: absolute; top: 10px; right: 10px;
+            width: 10px; height: 10px; border-radius: 50%;
+            background: red; box-shadow: 0 0 5px red;
+            transition: 0.3s;
+        }
+        .cam-indicator.active { background: var(--accent); box-shadow: 0 0 8px var(--accent); }
+
+        .status-box {
             background: #1a1a1a;
             padding: 12px;
             border-radius: 6px;
             margin-bottom: 10px;
             border: 1px solid #222;
-            font-size: 0.85em;
         }
-        .metric-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
-        .val { font-weight: bold; color: #888; }
-        .val.active { color: var(--accent); }
-        .val.warn { color: var(--warning); }
+
+        .metric-row { display: flex; justify-content: space-between; margin-bottom: 5px; font-size: 0.9em; }
+        .val { font-weight: bold; color: var(--accent); }
         .val.bad { color: var(--danger); }
 
         /* 壓力條 */
-        .stress-wrapper {
-            margin-top: 10px;
-        }
         .stress-bar-bg {
             height: 8px;
             background: #333;
             border-radius: 4px;
+            margin-top: 5px;
             overflow: hidden;
         }
         .stress-bar {
             height: 100%;
             width: 0%;
             background: var(--accent);
-            transition: width 0.5s, background 0.5s;
+            transition: width 0.5s ease-out, background 0.5s;
         }
 
         /* 聊天室 */
@@ -94,18 +98,18 @@
             padding: 10px;
             display: flex;
             flex-direction: column;
-            gap: 10px;
+            gap: 12px;
         }
-        .msg { padding: 10px; border-radius: 8px; font-size: 0.9em; max-width: 90%; word-wrap: break-word; line-height: 1.5; }
+        .msg { padding: 10px; border-radius: 8px; font-size: 0.9em; line-height: 1.5; max-width: 90%; word-wrap: break-word; }
         .msg.ai { background: #1a2a1a; border-left: 3px solid var(--accent); align-self: flex-start; }
         .msg.user { background: #004455; align-self: flex-end; }
-        .msg.system { color: #666; font-size: 0.8em; text-align: center; align-self: center; padding: 0; background: none;}
+        .msg.system { background: transparent; color: #666; font-size: 0.8em; text-align: center; align-self: center; border: none; padding: 0;}
 
         #chat-input {
-            background: #1a1a1a; border: 1px solid #333; color: white; padding: 10px; margin-top: 10px; border-radius: 4px;
+            background: #1a1a1a; border: 1px solid #333; color: white; padding: 10px; margin-top: 10px; border-radius: 4px; width: 100%; box-sizing: border-box;
         }
 
-        /* --- 右側任務 --- */
+        /* --- 右側任務與代碼 --- */
         .panel-right {
             flex-grow: 1;
             padding: 20px;
@@ -114,7 +118,7 @@
             position: relative;
         }
 
-        /* AI 任務卡片 */
+        /* 任務卡片 (AI 動態生成) */
         .mission-card {
             background: #151515;
             border-left: 5px solid var(--accent);
@@ -126,11 +130,14 @@
         }
         .mission-header { display: flex; justify-content: space-between; align-items: center; }
         .mission-title { font-size: 1.5em; margin: 0; color: white; }
-        .mission-story { color: #bbb; margin-top: 10px; font-style: italic; }
+        .mission-story { color: #bbb; margin-top: 10px; line-height: 1.6; font-style: italic; }
         .mission-task { background: #222; padding: 10px; margin-top: 10px; border-radius: 4px; color: var(--accent); font-family: monospace; }
-        
+
+        .btn-gen { background: #333; color: #ddd; border: 1px solid #555; padding: 5px 10px; cursor: pointer; border-radius: 4px; font-size: 0.8em; }
+        .btn-gen:hover { background: #444; }
+
         /* 編輯器 */
-        #editor-area {
+        #editor-wrapper {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
@@ -146,74 +153,88 @@
             color: #dcdcdc;
             border: none;
             padding: 20px;
-            font-family: 'Consolas', monospace;
+            font-family: 'Consolas', 'Courier New', monospace;
             font-size: 16px;
             line-height: 1.5;
             resize: none;
             outline: none;
         }
 
-        /* 底部控制列 (Button Area) */
         .editor-footer {
             background: #1a1a1a;
-            padding: 15px;
+            padding: 10px;
             display: flex;
             justify-content: flex-end;
             border-top: 1px solid #333;
-            gap: 15px; /* 按鈕之間的間距 */
         }
 
-        /* 執行按鈕 */
         .btn-run {
-            background: #005533; color: #fff; border: 1px solid var(--accent);
-            padding: 10px 30px; border-radius: 4px; cursor: pointer; font-weight: bold;
+            background: var(--accent-dim);
+            color: #fff;
+            border: 1px solid var(--accent);
+            padding: 8px 25px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
             font-size: 1em;
             transition: 0.2s;
         }
-        .btn-run:hover { background: var(--accent); color: #000; box-shadow: 0 0 10px var(--accent); }
-
-        /* 下一關按鈕 (移到這裡了!) */
-        .btn-gen {
-            background: #004466; color: #fff; border: 1px solid var(--secondary);
-            padding: 10px 25px; border-radius: 4px; cursor: pointer; font-weight: bold;
-            font-size: 1em;
-            transition: 0.2s;
-            display: flex; align-items: center; gap: 5px;
-        }
-        .btn-gen:hover { background: var(--secondary); color: #000; box-shadow: 0 0 10px var(--secondary); }
+        .btn-run:hover { background: var(--accent); color: #000; }
 
         #output {
             height: 120px;
-            background: #000; color: #aaa; padding: 15px; font-family: monospace;
-            border-top: 1px solid #333; white-space: pre-wrap; overflow-y: auto;
+            background: #000;
+            color: #aaa;
+            padding: 15px;
+            font-family: monospace;
+            border-top: 1px solid #333;
+            white-space: pre-wrap;
+            overflow-y: auto;
         }
 
-        /* --- 遮罩層 (Overlay) --- */
-        
-        /* 1. 治療模式 (紅色) */
-        #therapy-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(5, 5, 5, 0.95); z-index: 999;
-            display: none; flex-direction: column; justify-content: center; align-items: center;
-        }
-        .therapy-box {
-            width: 500px; padding: 40px; background: #111;
-            border: 2px solid var(--danger); border-radius: 12px; text-align: center;
-            box-shadow: 0 0 50px rgba(255, 50, 50, 0.2);
-        }
-
-        /* 2. 坐姿提醒 (黃色) */
+        /* --- 覆蓋層：姿勢警告 (Posture) --- */
         #posture-overlay {
-            position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(20, 15, 0, 0.9); z-index: 998; /* 比治療低一點 */
-            display: none; flex-direction: column; justify-content: center; align-items: center;
+            position: absolute;
+            top: 20px; left: 50%; 
+            transform: translateX(-50%);
+            background: rgba(255, 204, 0, 0.9);
+            color: #000;
+            padding: 15px 30px;
+            border-radius: 30px;
+            font-weight: bold;
+            font-size: 1.1em;
+            z-index: 500;
+            display: none; /* 預設隱藏 */
+            box-shadow: 0 0 20px rgba(255, 204, 0, 0.4);
+            animation: pulse 1.5s infinite;
         }
-        .posture-box {
-            width: 400px; padding: 30px; background: #111;
-            border: 2px solid var(--warning); border-radius: 12px; text-align: center;
-            box-shadow: 0 0 50px rgba(255, 170, 0, 0.2);
-        }
+        @keyframes pulse { 0% { opacity: 0.8; } 50% { opacity: 1; transform: translateX(-50%) scale(1.05); } 100% { opacity: 0.8; } }
 
+        /* --- 覆蓋層：治療模式 (Therapy) --- */
+        #therapy-overlay {
+            position: absolute;
+            top: 0; left: 0; width: 100%; height: 100%;
+            background: rgba(5, 5, 5, 0.95);
+            z-index: 999;
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            text-align: center;
+            animation: fadeIn 0.5s;
+        }
+        @keyframes fadeIn { from{opacity:0;} to{opacity:1;} }
+
+        .therapy-box {
+            width: 500px;
+            padding: 40px;
+            border: 2px solid var(--danger);
+            border-radius: 12px;
+            background: #111;
+            box-shadow: 0 0 50px rgba(255, 50, 50, 0.15);
+        }
+        .therapy-text { font-size: 1.2em; margin: 20px 0; color: #eee; min-height: 60px; }
+        
         .btn-resume {
             background: transparent; border: 1px solid var(--accent); color: var(--accent);
             padding: 10px 30px; margin-top: 20px; cursor: pointer; opacity: 0; transition: 1s;
@@ -223,134 +244,117 @@
 </head>
 <body>
 
-    <!-- 左側 -->
+    <!-- 姿勢警告 (懸浮) -->
+    <div id="posture-overlay">
+        ⚠️ 偵測不到使用者，請坐正或回到座位
+    </div>
+
+    <!-- 左側面板 -->
     <div class="panel-left">
-        <h3 style="color:var(--accent); text-align:center; margin-top:0;">NEXUS v6.1 (UX Fix)</h3>
+        <h3 style="color:var(--accent); text-align:center; letter-spacing:1px; margin-top:0;">NEXUS v5.1</h3>
         
         <div class="cam-box">
             <video id="video" autoplay muted playsinline></video>
+            <div id="cam-ind" class="cam-indicator"></div>
         </div>
 
-        <div class="metrics-box">
+        <div class="status-box">
             <div class="metric-row">
-                <span>臉部訊號:</span>
-                <span id="face-status" class="val">偵測中...</span>
+                <span>情緒狀態:</span>
+                <span id="emo-val" class="val">初始化...</span>
             </div>
             <div class="metric-row">
-                <span>表情情緒:</span>
-                <span id="emo-val" class="val">--</span>
-            </div>
-            <div class="metric-row">
-                <span>鍵盤/滑鼠:</span>
-                <span id="activity-val" class="val">Active</span>
-            </div>
-            <div class="metric-row">
-                <span>文字語氣:</span>
-                <span id="text-sentiment" class="val">Neutral</span>
+                <span>互動品質:</span>
+                <span id="text-sentiment-val" class="val" style="color:gray;">--</span>
             </div>
             
-            <div class="stress-wrapper">
-                <div style="display:flex; justify-content:space-between; color:gray; font-size:0.8em;">
-                    <span>STRESS LEVEL</span>
-                    <span id="stress-num">0%</span>
-                </div>
-                <div class="stress-bar-bg">
-                    <div id="stress-bar" class="stress-bar"></div>
-                </div>
+            <div style="margin-top:10px; font-size:0.8em; color:gray;">精神負載 (Stress Level)</div>
+            <div class="stress-bar-bg">
+                <div id="stress-bar" class="stress-bar"></div>
             </div>
         </div>
 
         <div id="chat-box">
-            <div class="msg ai">系統初始化完成。全方位感知模組已上線。</div>
+            <div class="msg ai">駭客你好。我是你的 AI 戰術顧問。正在初始化學習環境...</div>
         </div>
-        <input type="text" id="chat-input" placeholder="輸入訊息..." onkeypress="if(event.key==='Enter') sendChat()">
+        <input type="text" id="chat-input" placeholder="輸入訊息... (Enter 送出)" onkeypress="if(event.key==='Enter') sendChat()" autocomplete="off">
     </div>
 
-    <!-- 右側 -->
+    <!-- 右側面板 -->
     <div class="panel-right">
         
-        <!-- 🧘 坐姿/分心 提醒層 -->
-        <div id="posture-overlay">
-            <div class="posture-box">
-                <h1 style="color: var(--warning); margin:0; font-size: 3em;">⚠️</h1>
-                <h2 style="color: var(--warning);">訊號中斷 (Signal Lost)</h2>
-                <p style="color:#aaa; font-size:1.1em;">系統偵測不到您的臉部。<br>請調整坐姿，或是回到座位上。</p>
-                <small style="color:#555;">(回到鏡頭前將自動解除)</small>
-            </div>
-        </div>
-
-        <!-- 🚑 治療模式層 -->
+        <!-- 治療遮罩 -->
         <div id="therapy-overlay">
             <div class="therapy-box">
-                <h2 style="color: var(--danger); margin:0;">🔥 系統過熱警告</h2>
-                <p style="color:#888;">偵測到高壓/焦慮反應。請暫停操作。</p>
+                <h2 style="color: var(--danger); margin:0;">⚠️ 系統過熱警告</h2>
+                <p style="color:#888;">偵測到高壓情緒反應或無效互動。學習協定已暫停。</p>
                 <hr style="border-color:#333; margin:20px 0;">
-                <div id="ai-therapy-text" style="color:#eee; font-size:1.1em; min-height:60px;">AI 正在連線...</div>
-                <button id="btn-resume" class="btn-resume" onclick="closeTherapy()">我準備好了 ▶</button>
+                <div id="ai-therapy-text" class="therapy-text">AI 正在連線...</div>
+                <button id="btn-resume" class="btn-resume" onclick="closeTherapy()">我準備好了，繼續任務 ▶</button>
             </div>
         </div>
 
-        <!-- 任務卡 -->
-        <div class="mission-card">
+        <!-- 任務卡片 -->
+        <div class="mission-card" id="mission-card">
             <div class="mission-header">
                 <h2 class="mission-title" id="m-title">Level 0: 系統校準</h2>
-                <!-- 按鈕移除了 -->
+                <button class="btn-gen" onclick="generateNewMission()">🔄 生成新挑戰</button>
             </div>
-            <div class="mission-story" id="m-story">請向主機發送確認訊號以啟動 Python 終端機。</div>
-            <div class="mission-task" id="m-task">任務：使用 print("Ready") 印出訊號。</div>
+            <div class="mission-story" id="m-story">我們需要確認你的 Python 終端機運作正常。請向主機發送訊號。</div>
+            <div class="mission-task" id="m-task">任務：請使用 print("Link Start") 印出訊號。</div>
         </div>
 
         <!-- 編輯器 -->
-        <div id="editor-area">
-            <textarea id="code" spellcheck="false" placeholder="# Python Code Here..." oninput="handleTyping()" onkeydown="handleKeyDown(event)"></textarea>
-            
-            <!-- 底部控制列 -->
+        <div id="editor-wrapper">
+            <textarea id="code" spellcheck="false" placeholder="# 在此輸入 Python 代碼..."></textarea>
             <div class="editor-footer">
-                <button class="btn-run" onclick="runCode()">▶ 執行代碼 (RUN)</button>
-                <button class="btn-gen" onclick="generateNewMission()">🔄 下一關 / 生成挑戰</button>
+                <button class="btn-run" onclick="runPythonCode()">▶ 執行代碼 (RUN)</button>
             </div>
-            
             <div id="output">等待指令...</div>
         </div>
     </div>
 
     <script>
         // ==========================================
-        // 🔑 API KEY (請填入)
+        // 🔑 API KEY 設定 (請務必填寫)
         // ==========================================
         const API_KEY = "AIzaSyA2k88qSlo4mcuWkjoLBf9Yeb-v4BXgaco"; 
-        const MODEL_NAME = "gemini-2.5-flash";
+        const MODEL_NAME = "gemini-2.5-flash"; 
         // ==========================================
 
-        // --- 變數與狀態 ---
+        // --- 核心變數 ---
         let pyodide = null;
         let isModelLoaded = false;
-        let isTherapy = false; // 治療模式
-        let isPostureWarning = false; // 坐姿警告模式
-        
-        let currentValidation = "Ready"; // 過關關鍵字
-
-        // 1. 感知數據 (Sensors)
+        let isTherapy = false;
         let stressScore = 0;
-        let textNegativeScore = 0; // 文字負面分
+        let currentValidation = "Link Start"; 
         
-        // 臉部滑動窗口
-        const WINDOW_SIZE = 10;
-        let faceWindow = []; // 存 0(正常) 或 1(負面)
-        let faceLostCount = 0; // 連續找不到臉的次數
+        // 情緒滑動窗口
+        const EMO_WINDOW = 20;
+        let emoHistory = [];
 
-        // 行為追蹤
-        let lastTypingTime = Date.now();
-        let mouseDist = 0;
-        let backspaceCount = 0;
+        // 姿勢/存在感偵測變數
+        let hasFaceBeenDetectedOnce = false; // 是否曾經偵測到臉 (避免一開始沒人就狂叫)
+        let faceMissingCounter = 0;          // 臉消失的計數器
+        const FACE_MISSING_THRESHOLD = 10;   // 約 5 秒 (500ms * 10)
 
+        // 互動品質 (Text Quality)
+        let textNegativeScore = 0; 
+        
         // 初始化
-        async function init() {
+        async function initSystem() {
+            const out = document.getElementById('output');
+            
+            // 1. 載入 Pyodide
             try {
+                out.innerText = ">>> 載入 Python 核心中...";
                 pyodide = await loadPyodide();
-                document.getElementById('output').innerText = ">>> Python Ready.";
-            } catch(e) { document.getElementById('output').innerText = "Python Load Fail"; }
+                out.innerText = ">>> Python 核心就緒。\n>>> 正在啟動視覺模組...";
+            } catch(e) {
+                out.innerText = "Python 載入失敗: " + e;
+            }
 
+            // 2. 載入 Face API
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
@@ -358,275 +362,345 @@
             ]);
             isModelLoaded = true;
 
+            // 3. 啟動 Webcam
             const video = document.getElementById('video');
             try {
                 const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
                 video.srcObject = stream;
-                
-                // 啟動監測循環
                 video.addEventListener('play', () => {
-                    setInterval(senseLoop, 500); // 0.5秒一次感知
+                    setInterval(monitorLoop, 500); // 啟動主監控循環 (0.5秒一次)
                 });
-
-                // 滑鼠監聽
-                document.addEventListener('mousemove', (e) => {
-                    mouseDist += Math.abs(e.movementX) + Math.abs(e.movementY);
-                });
-
+                out.innerText = ">>> 系統全數運作正常。\n>>> 等待輸入...";
             } catch(e) {
-                alert("無法開啟攝影機，部分功能將失效。");
+                out.innerText += "\n[警告] 無法存取攝影機。";
             }
         }
-        init();
+        initSystem(); 
 
-        // --- 🧠 核心感知循環 (Omni-Sense Loop) ---
-        async function senseLoop() {
-            if(!isModelLoaded) return;
-            if(isTherapy) return;
+        // --- 🧠 主監控循環 (Monitor Loop) ---
+        async function monitorLoop() {
+            if (!isModelLoaded || isTherapy) return;
 
             const video = document.getElementById('video');
-            
-            // 1. 臉部偵測
+            // 偵測人臉與表情
             const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
-            
-            // --- A. 坐姿/分心檢測 (Face Loss) ---
-            if (detections.length === 0) {
-                faceLostCount++;
-                document.getElementById('face-status').innerText = "訊號遺失";
-                document.getElementById('face-status').className = "val warn";
+            const camInd = document.getElementById('cam-ind');
+            const postureOverlay = document.getElementById('posture-overlay');
 
-                // 連續 3 秒 (6次 * 0.5s) 找不到臉 -> 觸發警告
-                if (faceLostCount > 6 && !isPostureWarning) {
-                    showPostureWarning(true);
-                }
+            if (detections.length > 0) {
+                // --- 狀態：有人 ---
+                hasFaceBeenDetectedOnce = true;
+                faceMissingCounter = 0;
+                camInd.classList.add('active');
+                postureOverlay.style.display = 'none'; // 隱藏警告
+                document.getElementById('editor-wrapper').style.filter = 'none'; // 恢復清晰
+
+                // 分析表情
+                analyzeFace(detections[0]);
+
             } else {
-                faceLostCount = 0;
-                document.getElementById('face-status').innerText = "正常連線";
-                document.getElementById('face-status').className = "val active";
-                if (isPostureWarning) showPostureWarning(false);
-            }
-
-            if(isPostureWarning) return;
-
-            // --- B. 情緒分析 ---
-            let isBadFace = 0;
-            if(detections.length > 0) {
-                const ex = detections[0].expressions;
-                const sorted = Object.entries(ex).sort((a,b)=>b[1]-a[1]);
-                const top = sorted[0][0];
+                // --- 狀態：無人 ---
+                camInd.classList.remove('active');
                 
-                const emoEl = document.getElementById('emo-val');
-                const map = {
-                    'happy': {t:'開心', c:'#00ff9d'}, 'neutral': {t:'平靜', c:'#888'},
-                    'sad': {t:'挫折', c:'#ff3333'}, 'angry': {t:'生氣', c:'#ff3333'},
-                    'fearful': {t:'緊張', c:'orange'}
-                };
-                const info = map[top] || {t:top, c:'#888'};
-                emoEl.innerText = info.t;
-                emoEl.style.color = info.c;
+                // 只有當「曾經有人」但現在「人不見了」才開始計時
+                if (hasFaceBeenDetectedOnce) {
+                    faceMissingCounter++;
+                    
+                    // 更新 UI 顯示「找不到人」
+                    document.getElementById('emo-val').innerText = "遺失訊號...";
+                    document.getElementById('emo-val').style.color = "gray";
 
-                if(['sad', 'angry', 'fearful', 'disgusted'].includes(top)) isBadFace = 1;
+                    // 超過閾值 (約 5 秒)，顯示坐姿警告
+                    if (faceMissingCounter > FACE_MISSING_THRESHOLD) {
+                        postureOverlay.style.display = 'block';
+                        document.getElementById('editor-wrapper').style.filter = 'blur(4px)'; // 稍微模糊背景以示警
+                    }
+                }
             }
-            
-            faceWindow.push(isBadFace);
-            if(faceWindow.length > WINDOW_SIZE) faceWindow.shift();
 
-            // --- C. 行為分析 (滑鼠/鍵盤) ---
-            analyzeBehavior();
-
-            // --- D. 計算總壓力 ---
-            calculateTotalStress();
+            // 計算整體壓力
+            calculateStress();
         }
 
-        function analyzeBehavior() {
-            const now = Date.now();
-            const idleSec = (now - lastTypingTime) / 1000;
-            
-            let status = "Active";
-            let color = "active";
-            
-            if (mouseDist > 1500 && idleSec > 5) {
-                status = "焦慮游移 (Jitter)";
-                color = "warn";
-                textNegativeScore += 2; 
-            } else if (idleSec > 20) {
-                status = "閒置 (Idle)";
-                color = "warn";
-            }
-            
-            if (backspaceCount > 3) {
-                status = "憤怒刪除 (Rage)";
-                color = "bad";
-                textNegativeScore += 5; 
-            }
+        function analyzeFace(detection) {
+            const ex = detection.expressions;
+            const sorted = Object.entries(ex).sort((a,b) => b[1]-a[1]);
+            const top = sorted[0][0];
 
-            mouseDist = 0;
-            if(backspaceCount > 0) backspaceCount--;
-            if(textNegativeScore > 0) textNegativeScore -= 0.5;
+            let isBadFace = 0;
+            const map = {
+                'happy': {t:'開心/自信', c:'#00ff9d'},
+                'neutral': {t:'平靜/專注', c:'#00ccff'},
+                'sad': {t:'挫折', c:'#ff3333'},
+                'angry': {t:'生氣/焦慮', c:'#ff3333'},
+                'fearful': {t:'緊張', c:'orange'},
+                'surprised': {t:'驚訝', c:'yellow'},
+                'disgusted': {t:'厭惡', c:'purple'}
+            };
+            
+            const info = map[top] || {t:top, c:'white'};
+            const el = document.getElementById('emo-val');
+            el.innerText = info.t;
+            el.style.color = info.c;
 
-            const actEl = document.getElementById('activity-val');
-            actEl.innerText = status;
-            actEl.className = "val " + color;
+            // 定義什麼是「負面表情」 (用於計算壓力)
+            if (['sad', 'angry', 'fearful', 'disgusted'].includes(top)) isBadFace = 1;
+
+            // 更新歷史窗口
+            emoHistory.push(isBadFace);
+            if(emoHistory.length > EMO_WINDOW) emoHistory.shift();
         }
 
-        function calculateTotalStress() {
-            const badCount = faceWindow.reduce((a,b)=>a+b, 0);
-            const faceStress = (badCount / faceWindow.length) * 100;
-            stressScore = (faceStress * 0.5) + Math.min(100, textNegativeScore);
+        // --- 📊 壓力計算邏輯 ---
+        function calculateStress() {
+            // A. 表情壓力
+            let faceStress = 0;
+            if(emoHistory.length > 0) {
+                const badCount = emoHistory.reduce((a,b)=>a+b, 0);
+                faceStress = (badCount / emoHistory.length) * 100;
+            }
 
+            // B. 文字負面指數 (隨時間自然冷卻)
+            if(textNegativeScore > 0) textNegativeScore -= 0.2; // 冷卻速度
+
+            // 綜合計算 (文字權重較高，因為直接罵人通常代表很不爽)
+            // 如果臉部偵測不到(趴著)，壓力不增加，但會觸發姿勢警告(另一條路徑)
+            stressScore = (faceStress * 0.4) + Math.min(100, textNegativeScore);
+
+            // UI 更新
             const bar = document.getElementById('stress-bar');
             bar.style.width = Math.min(100, stressScore) + "%";
-            document.getElementById('stress-num').innerText = Math.floor(stressScore) + "%";
-
+            
             if(stressScore < 40) bar.style.background = "#00ff9d";
-            else if(stressScore < 75) bar.style.background = "#ffaa00";
+            else if(stressScore < 80) bar.style.background = "orange";
             else bar.style.background = "#ff3333";
 
-            if(stressScore > 80) triggerTherapy();
+            // 觸發治療 (閾值 85)
+            if(stressScore > 85) {
+                triggerTherapy();
+            }
         }
 
-        function showPostureWarning(show) {
-            isPostureWarning = show;
-            document.getElementById('posture-overlay').style.display = show ? 'flex' : 'none';
+        // --- 📝 文字與行為分析 ---
+        function analyzeTextBehavior(text) {
+            let penalty = 0;
+            let statusText = "正常";
+            let statusClass = "val";
+
+            // 1. 亂碼/重複字元偵測 (例如: "aaaaa", "asdfasdf")
+            // 正則解釋：偵測同一個字元連續出現 5 次以上
+            const repeatedChars = /(.)\1{4,}/; 
+            if (repeatedChars.test(text) || text.length > 50 && !text.includes(' ')) {
+                penalty += 40; // 亂打懲罰重
+                statusText = "亂碼/敷衍";
+                statusClass = "val bad";
+            }
+
+            // 2. 負面關鍵字偵測
+            const negativeWords = ['難', '不會', '煩', '爛', '討厭', '放棄', '看不懂', 'error', '失敗', '笨', '垃圾'];
+            let hit = false;
+            negativeWords.forEach(w => {
+                if(text.includes(w)) hit = true;
+            });
+
+            if(hit) {
+                penalty += 30;
+                statusText = "負面言語";
+                statusClass = "val bad";
+            }
+
+            // 更新分數
+            textNegativeScore += penalty;
+            
+            // 更新 UI
+            const el = document.getElementById('text-sentiment-val');
+            el.innerText = statusText;
+            el.className = statusClass;
+
+            return penalty > 0; // 回傳是否為負面行為
         }
 
+        // --- 🤖 AI 聊天功能 ---
+        async function sendChat() {
+            const input = document.getElementById('chat-input');
+            const text = input.value.trim();
+            if(!text) return;
+
+            // 顯示使用者訊息
+            addMsg('user', text);
+            input.value = "";
+            
+            // 分析行為
+            const isNegative = analyzeTextBehavior(text);
+
+            // 呼叫 AI
+            addMsg('system', 'AI 思考中...');
+            
+            const codeContext = document.getElementById('code').value;
+            let systemPrompt = `
+            你是 Code Nexus 的 AI 戰術顧問。
+            學生正在解題：${document.getElementById('m-title').innerText}
+            學生程式碼：${codeContext}
+            學生訊息：${text}
+            
+            請遵守：
+            1. 回答要簡短、像個駭客顧問。
+            2. 使用繁體中文。
+            `;
+
+            if (isNegative) {
+                systemPrompt += `
+                注意：學生似乎正在情緒發洩、亂打字或說負面的話。
+                請用幽默或稍微嚴肅的方式提醒他專注任務，不要隨之起舞。
+                `;
+            } else {
+                systemPrompt += `如果學生在問程式問題，請引導他而不是直接給答案。`;
+            }
+            
+            const reply = await callGemini(systemPrompt);
+            document.querySelector('#chat-box .msg.system').remove(); 
+            addMsg('ai', marked.parse(reply));
+        }
+
+        // --- 任務生成 ---
+        async function generateNewMission() {
+            const btn = document.querySelector('.btn-gen');
+            btn.innerText = "生成中...";
+            btn.disabled = true;
+
+            const prompt = `
+            請扮演一個賽博龐克 (Cyberpunk) 風格的程式導師。
+            請「生成一個」Python 初學者題目。
+            
+            請嚴格遵守以下 JSON 格式回傳，不要有 markdown 標記：
+            {
+                "title": "任務標題",
+                "story": "一段 30 字以內的科幻情境描述",
+                "task": "具體的程式任務說明",
+                "default_code": "# 你的程式碼...",
+                "validation_keyword": "執行結果中必須包含的關鍵字"
+            }
+            題目難度：適合 Python 初學者。繁體中文。
+            `;
+
+            try {
+                let jsonStr = await callGemini(prompt);
+                jsonStr = jsonStr.replace(/```json/g, '').replace(/```/g, '').trim();
+                const data = JSON.parse(jsonStr);
+                
+                document.getElementById('m-title').innerText = data.title;
+                document.getElementById('m-story').innerText = data.story;
+                document.getElementById('m-task').innerText = data.task;
+                document.getElementById('code').value = data.default_code;
+                currentValidation = data.validation_keyword;
+                
+                addMsg('ai', `新任務已下達：${data.title}。`);
+
+            } catch(e) {
+                console.error(e);
+                addMsg('system', '生成失敗，請重試。');
+            }
+            
+            btn.innerText = "🔄 生成新挑戰";
+            btn.disabled = false;
+        }
+
+        // --- 治療模式 ---
         async function triggerTherapy() {
             if(isTherapy) return;
             isTherapy = true;
             
             document.getElementById('therapy-overlay').style.display = 'flex';
-            document.getElementById('editor-area').style.filter = 'blur(10px)';
+            document.getElementById('editor-wrapper').style.filter = 'blur(10px)';
             document.getElementById('btn-resume').style.opacity = '0';
-            
-            const aiEl = document.getElementById('ai-therapy-text');
-            aiEl.innerText = "AI 正在分析您的狀態...";
+
+            const aiText = document.getElementById('ai-therapy-text');
+            aiText.innerText = "AI 正在偵測系統異常並重組神經網路...";
 
             const prompt = `
-            使用者目前壓力過大 (Stress > 80%)。
-            請講一個非常短的笑話，或者一句溫暖的鼓勵。
-            繁體中文，語氣幽默輕鬆。
+            學生現在情緒失控或故意搗亂 (Stress/Behavior Level > 85%)。
+            請講一個非常冷的「工程師笑話」來緩和氣氛，或者用駭客的口吻叫他冷靜一點。
+            繁體中文。
             `;
+            
             const reply = await callGemini(prompt);
             
-            let i=0; aiEl.innerHTML="";
-            const t = setInterval(()=>{
-                aiEl.innerHTML+=reply.charAt(i); i++;
-                if(i>=reply.length){ clearInterval(t); document.getElementById('btn-resume').style.opacity='1'; }
+            let i = 0;
+            aiText.innerHTML = "";
+            const interval = setInterval(() => {
+                aiText.innerHTML += reply.charAt(i);
+                i++;
+                if(i >= reply.length) {
+                    clearInterval(interval);
+                    document.getElementById('btn-resume').style.opacity = '1';
+                }
             }, 50);
-
+            
             stressScore = 30;
             textNegativeScore = 0;
-            faceWindow = [];
+            emoHistory = [];
         }
 
         function closeTherapy() {
             document.getElementById('therapy-overlay').style.display = 'none';
-            document.getElementById('editor-area').style.filter = 'none';
+            document.getElementById('editor-wrapper').style.filter = 'none';
             isTherapy = false;
         }
 
-        function handleTyping() { lastTypingTime = Date.now(); }
-        function handleKeyDown(e) { if(e.key === 'Backspace') backspaceCount += 2; }
-
-        async function sendChat() {
-            const input = document.getElementById('chat-input');
-            const val = input.value;
-            if(!val) return;
-
-            addMsg('user', val);
-            input.value = "";
-
-            const negWords = ['難','不會','煩','爛','討厭','放棄','看不懂'];
-            if(negWords.some(w => val.includes(w))) {
-                textNegativeScore += 30;
-                document.getElementById('text-sentiment').innerText = "Negative";
-                document.getElementById('text-sentiment').className = "val bad";
-            } else {
-                document.getElementById('text-sentiment').innerText = "Normal";
-                document.getElementById('text-sentiment').className = "val";
-            }
-
-            addMsg('system', 'AI 思考中...');
-            
-            const code = document.getElementById('code').value;
-            const prompt = `
-            你是 Code Nexus 的 AI 戰術顧問。
-            學生正在解題：${document.getElementById('m-title').innerText}
-            學生程式碼：${code}
-            學生訊息：${val}
-            請簡短回答。如果學生感到挫折請鼓勵。
-            `;
-            const reply = await callGemini(prompt);
-            document.querySelector('#chat-box .msg.system').remove();
-            addMsg('ai', marked.parse(reply));
-        }
-
-        async function generateNewMission() {
-            const btn = document.querySelector('.btn-gen');
-            btn.innerText = "生成中..."; btn.disabled = true;
-
-            const prompt = `
-            生成一個 Python 初學者題目 JSON：
-            {
-                "title": "標題",
-                "story": "30字內的科幻情境",
-                "task": "具體程式任務",
-                "default_code": "# code...",
-                "keyword": "執行結果必須包含的字串"
-            }
-            `;
-            try {
-                let json = await callGemini(prompt);
-                json = json.replace(/```json/g,'').replace(/```/g,'').trim();
-                const data = JSON.parse(json);
-                
-                document.getElementById('m-title').innerText = data.title;
-                document.getElementById('m-story').innerText = data.story;
-                document.getElementById('m-task').innerText = "任務: " + data.task;
-                document.getElementById('code').value = data.default_code;
-                currentValidation = data.keyword;
-                addMsg('ai', `新任務：${data.title}`);
-            } catch(e) { addMsg('system', '生成失敗'); }
-            
-            btn.innerText = "🔄 下一關 / 生成挑戰"; btn.disabled = false;
-        }
-
-        async function runCode() {
-            const out = document.getElementById('output');
-            out.innerText = ">>> 執行中...\n";
-            if(!pyodide) return;
-            
-            const code = document.getElementById('code').value;
-            try {
-                pyodide.setStdout({ batched: (s) => out.innerText += s + "\n" });
-                await pyodide.runPythonAsync(code);
-                
-                const res = out.innerText;
-                if(currentValidation && res.includes(currentValidation)) {
-                    out.innerText += "\n[SYSTEM]: ✅ 任務達成！";
-                    addMsg('ai', '幹得好！目標達成。可以按下方的「生成挑戰」進入下一關。');
-                }
-            } catch(e) { out.innerText += "\n[Error]: " + e; }
-        }
-
+        // --- API & Python ---
         async function callGemini(text) {
-            if(API_KEY.includes("請在此")) return "請填寫 API Key";
+            if(API_KEY.includes("請在此")) {
+                alert("請填入 API Key！");
+                return "API Key Error";
+            }
             const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
             try {
                 const res = await fetch(url, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
+                    method: 'POST',
+                    headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{ text }] }] })
                 });
                 const data = await res.json();
                 return data.candidates[0].content.parts[0].text;
-            } catch(e) { return "連線錯誤"; }
+            } catch(e) {
+                return "連線錯誤。";
+            }
+        }
+
+        async function runPythonCode() {
+            const code = document.getElementById('code').value;
+            const out = document.getElementById('output');
+            out.innerText = ">>> 執行中...\n";
+
+            if(!pyodide) {
+                out.innerText += "系統尚未就緒。";
+                return;
+            }
+
+            try {
+                pyodide.setStdout({ batched: (msg) => { out.innerText += msg + "\n"; } });
+                await pyodide.runPythonAsync(code);
+
+                const result = out.innerText;
+                if(currentValidation && result.includes(currentValidation)) {
+                    out.innerText += `\n[SYSTEM]: ✅ 成功偵測關鍵訊號 "${currentValidation}"`;
+                    addMsg('ai', '代碼執行成功。權限已提升。');
+                } else if (currentValidation) {
+                    out.innerText += `\n[SYSTEM]: ⚠️ 未偵測到預期輸出 "${currentValidation}"`;
+                }
+
+            } catch(err) {
+                out.innerText += "\n[Error]: " + err;
+            }
         }
 
         function addMsg(role, html) {
             const div = document.createElement('div');
-            div.className = `msg ${role}`; div.innerHTML = html;
+            div.className = `msg ${role}`;
+            div.innerHTML = html;
             const box = document.getElementById('chat-box');
-            box.appendChild(div); box.scrollTop = box.scrollHeight;
+            box.appendChild(div);
+            box.scrollTop = box.scrollHeight;
         }
 
     </script>
