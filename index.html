@@ -2,35 +2,33 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus: AI 情緒防護系統 (v3.0 Therapy)</title>
+    <title>Code Nexus: 多模態感知系統 (v4.0 Omni)</title>
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <style>
         :root {
-            --bg-color: #050505;
-            --panel-bg: #111;
-            --text-main: #e0e0e0;
-            --accent: #00ff41; /* Matrix Green */
-            --danger: #ff3333;
-            --warning: #ffaa00;
+            --bg-color: #0a0a0a;
+            --panel-bg: #141414;
+            --accent: #00e5ff; /* Cyber Blue */
+            --danger: #ff2a2a;
             --border: #333;
         }
 
         body {
             background-color: var(--bg-color);
-            color: var(--text-main);
-            font-family: 'Segoe UI', 'Courier New', monospace;
+            color: #ddd;
+            font-family: 'Segoe UI', monospace;
             margin: 0;
             display: flex;
             height: 100vh;
             overflow: hidden;
         }
 
-        /* --- 左側監控面板 --- */
+        /* 左側監控 */
         .panel-left {
-            width: 300px;
+            width: 320px;
             background: var(--panel-bg);
             border-right: 1px solid var(--border);
             display: flex;
@@ -39,66 +37,60 @@
             z-index: 10;
         }
 
-        .cam-frame {
-            border: 2px solid var(--accent);
+        .cam-box {
             height: 200px;
             background: #000;
+            border: 2px solid var(--accent);
             position: relative;
             margin-bottom: 10px;
             overflow: hidden;
-            border-radius: 4px;
         }
         video { width: 100%; height: 100%; object-fit: cover; transform: scaleX(-1); }
 
-        .status-module {
-            background: #1a1a1a;
-            padding: 10px;
-            border-radius: 5px;
-            border: 1px solid var(--border);
+        .metrics-box {
+            background: #1f1f1f;
+            padding: 12px;
+            border-radius: 6px;
+            font-size: 0.85em;
             margin-bottom: 10px;
         }
-        
-        .emotion-text { font-size: 1.2em; font-weight: bold; transition: 0.3s; }
-        
-        /* 10秒倒數警告條 */
-        .load-bar-container {
-            height: 10px;
+        .metric-row { display: flex; justify-content: space-between; margin-bottom: 5px; }
+        .val { color: var(--accent); font-weight: bold; }
+        .val.bad { color: var(--danger); }
+
+        /* 壓力條 */
+        .stress-container {
+            height: 8px;
             background: #333;
-            border-radius: 5px;
+            border-radius: 4px;
             margin-top: 5px;
             overflow: hidden;
-            position: relative;
         }
-        .load-bar {
+        .stress-bar {
             height: 100%;
             width: 0%;
-            background: var(--danger);
-            transition: width 0.5s linear; /* 平滑過渡 */
+            background: var(--accent);
+            transition: width 0.3s, background 0.3s;
         }
-        .load-text { font-size: 0.8em; color: #888; text-align: right; margin-top: 2px; }
 
-        /* 聊天室 */
+        /* 聊天 */
         #chat-box {
             flex-grow: 1;
             background: #000;
             border: 1px solid var(--border);
             overflow-y: auto;
             padding: 10px;
-            margin-bottom: 10px;
             display: flex;
             flex-direction: column;
             gap: 10px;
         }
-        .msg { padding: 8px 12px; border-radius: 8px; max-width: 90%; font-size: 0.9em; line-height: 1.5; }
+        .msg { padding: 8px; border-radius: 4px; font-size: 0.9em; max-width: 90%; }
         .msg.ai { background: #222; border-left: 3px solid var(--accent); align-self: flex-start; }
-        .msg.user { background: #004400; align-self: flex-end; }
-        .msg.system { text-align: center; color: #666; font-size: 0.8em; }
+        .msg.user { background: #005577; align-self: flex-end; }
+        
+        input { background: #222; border: 1px solid #444; color: white; padding: 10px; margin-top: 10px; }
 
-        input {
-            background: #111; border: 1px solid #444; color: white; padding: 10px; width: 100%; box-sizing: border-box;
-        }
-
-        /* --- 右側操作區 --- */
+        /* 右側操作 */
         .panel-right {
             flex-grow: 1;
             padding: 20px;
@@ -107,26 +99,18 @@
             position: relative;
         }
 
-        .mission-header {
-            border-left: 4px solid var(--accent);
-            padding-left: 15px;
-            margin-bottom: 20px;
-        }
-        
         #editor-area {
             flex-grow: 1;
             display: flex;
             flex-direction: column;
             border: 1px solid var(--border);
-            border-radius: 5px;
-            overflow: hidden;
-            transition: filter 0.8s; /* 模糊動畫 */
+            transition: filter 0.8s;
         }
         
         textarea {
             flex-grow: 1;
-            background: #0d0d0d;
-            color: #ddd;
+            background: #111;
+            color: #0f0;
             border: none;
             padding: 20px;
             font-family: 'Courier New', monospace;
@@ -135,146 +119,90 @@
             outline: none;
         }
 
-        .controls {
-            padding: 10px;
-            background: #1a1a1a;
-            display: flex;
-            justify-content: flex-end;
-            gap: 10px;
-        }
-
-        button {
-            padding: 8px 24px;
-            background: var(--accent);
-            color: black;
-            border: none;
-            font-weight: bold;
-            cursor: pointer;
-            border-radius: 3px;
-        }
-        button:hover { opacity: 0.8; }
-        button.next { background: #00aaff; color: white; display: none; }
-
-        #output {
-            height: 120px;
-            background: black;
-            color: #aaa;
-            padding: 10px;
-            font-family: monospace;
-            border-top: 1px solid var(--border);
-            white-space: pre-wrap;
-        }
-
-        /* --- 🚨 強制介入覆蓋層 (Therapy Overlay) --- */
-        #therapy-layer {
+        /* 治療模式覆蓋層 */
+        #therapy-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0, 0, 0, 0.95);
+            background: rgba(10, 10, 10, 0.95);
             z-index: 999;
-            display: none; /* 預設隱藏 */
+            display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
             text-align: center;
-            animation: fadeIn 1s;
         }
-
-        @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
-
-        .therapy-card {
-            width: 60%;
-            max-width: 600px;
-            background: #111;
-            border: 2px solid var(--accent);
-            padding: 40px;
-            border-radius: 10px;
-            box-shadow: 0 0 50px rgba(0, 255, 65, 0.2);
-        }
-
-        .therapy-icon { font-size: 3em; margin-bottom: 20px; }
+        .therapy-box { width: 60%; padding: 40px; border: 2px solid var(--danger); border-radius: 10px; background: #1a1a1a; }
         
-        #ai-therapy-msg {
-            font-size: 1.2em;
-            color: #fff;
-            margin: 20px 0;
-            line-height: 1.6;
-            min-height: 80px;
+        #btn-resume {
+            margin-top: 20px; padding: 10px 30px; 
+            background: transparent; border: 1px solid var(--accent); color: var(--accent);
+            cursor: pointer; opacity: 0; transition: opacity 1s;
         }
 
-        .btn-resume {
-            background: transparent;
-            border: 1px solid var(--accent);
-            color: var(--accent);
-            padding: 10px 30px;
-            margin-top: 20px;
-            opacity: 0; /* 一開始隱藏，等 AI講完話才出來 */
-            transition: opacity 1s;
-        }
+        /* 除錯資訊 (可選隱藏) */
+        .debug-info { color: #555; font-size: 0.7em; margin-top: 5px; }
 
     </style>
 </head>
 <body>
 
-    <!-- 左側 -->
     <div class="panel-left">
-        <h2 style="color:var(--accent); text-align:center; letter-spacing:2px;">NEXUS OS</h2>
+        <h3 style="color:var(--accent); text-align:center;">OMNI SENSE v4.0</h3>
         
-        <div class="cam-frame">
+        <div class="cam-box">
             <video id="video" autoplay muted playsinline></video>
         </div>
 
-        <div class="status-module">
-            <div>情緒掃描: <span id="emotion-val" class="emotion-text">初始化...</span></div>
+        <div class="metrics-box">
+            <div class="metric-row">
+                <span>情緒 (10s avg):</span>
+                <span id="emo-val" class="val">--</span>
+            </div>
+            <div class="metric-row">
+                <span>最後輸入:</span>
+                <span id="idle-val" class="val">0s</span>
+            </div>
+            <div class="metric-row">
+                <span>滑鼠游移:</span>
+                <span id="mouse-val" class="val">0</span>
+            </div>
             
-            <!-- 10秒累積條 -->
-            <div style="margin-top: 15px; font-size: 0.8em; color: gray; display: flex; justify-content: space-between;">
-                <span>MENTAL LOAD (情緒負載)</span>
-                <span id="timer-val">0s</span>
+            <div style="margin-top:10px;">綜合壓力指數 (Stress Index)</div>
+            <div class="stress-container">
+                <div id="stress-bar" class="stress-bar"></div>
             </div>
-            <div class="load-bar-container">
-                <div id="stress-bar" class="load-bar"></div>
-            </div>
+            <div id="debug-trigger" class="debug-info">狀態: 監控中</div>
         </div>
 
         <div id="chat-box">
-            <div class="msg ai">系統就緒。攝影機監控中...<br>若偵測到情緒過載，將自動啟動安全協議。</div>
+            <div class="msg ai">系統已啟動。正在進行多模態行為分析...</div>
         </div>
-        
-        <input type="text" id="user-input" placeholder="輸入訊息..." onkeypress="if(event.key==='Enter') askAI()">
+        <input type="text" id="user-input" placeholder="輸入訊息..." onkeypress="if(event.key==='Enter') sendChat()">
     </div>
 
-    <!-- 右側 -->
     <div class="panel-right">
-        
-        <!-- 🚨 治療模式覆蓋層 -->
-        <div id="therapy-layer">
-            <div class="therapy-card">
-                <div class="therapy-icon">☕</div>
-                <h2 style="color: var(--accent);">系統暫停 // System Paused</h2>
-                <p style="color: #888;">偵測到持續性的負面情緒 (超過10秒)。<br>為了學習效率，請暫時放下程式碼。</p>
-                <hr style="border-color: #333; margin: 20px 0;">
-                
-                <!-- AI 的安撫訊息會打字顯示在這裡 -->
-                <div id="ai-therapy-msg">AI 正在思考如何讓你開心...</div>
-                
-                <button id="btn-resume" class="btn-resume" onclick="closeTherapy()">
-                    我感覺好多了，繼續學習 ▶
-                </button>
+        <!-- 治療模式 -->
+        <div id="therapy-overlay">
+            <div class="therapy-box">
+                <h1 style="color: var(--danger);">⚠️ 檢測到高壓力反應</h1>
+                <p style="color:#aaa;">判斷依據：<span id="trigger-reason"></span></p>
+                <hr style="border-color:#333; margin:20px 0;">
+                <div id="ai-therapy-text" style="font-size:1.2em; min-height:60px;">AI 正在連線...</div>
+                <button id="btn-resume" onclick="closeTherapy()">我準備好了，繼續 ▶</button>
             </div>
         </div>
 
-        <div class="mission-header">
-            <h1 id="lvl-title">Level 1: Hello Nexus</h1>
-            <p id="lvl-desc" style="color:#aaa;">請印出 "Hello World" 以測試通訊。</p>
+        <div style="margin-bottom:10px;">
+            <h2 id="lvl-title">Level 1: 變數與賦值</h2>
+            <p id="lvl-desc" style="color:#888;">請定義變數 score 並設為 100。</p>
         </div>
 
         <div id="editor-area">
-            <textarea id="code" spellcheck="false"></textarea>
-            <div class="controls">
-                <button onclick="runCode()">執行代碼 (RUN)</button>
-                <button id="btn-next" class="next" onclick="nextLevel()">下一關 ➔</button>
+            <textarea id="code" spellcheck="false" oninput="handleTyping()" onkeydown="handleKeyDown(event)"></textarea>
+            <div style="padding:10px; background:#222; text-align:right;">
+                <button onclick="runCode()" style="padding:8px 20px; background:var(--accent); border:none; cursor:pointer;">執行 (Run)</button>
             </div>
-            <div id="output">等待指令...</div>
+            <div id="output" style="height:100px; background:black; color:#aaa; padding:10px; font-family:monospace;"></div>
         </div>
     </div>
 
@@ -283,281 +211,253 @@
         // 🔑 API KEY 設定
         // ==========================================
         const API_KEY = "AIzaSyA2k88qSlo4mcuWkjoLBf9Yeb-v4BXgaco"; 
-        
-        // 指定使用 1.5 Flash (目前最快且穩定)
-        const MODEL_NAME = "gemini-2.5-flash"; 
-        const API_URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
+        const MODEL_NAME = "gemini-2.5-flash";
         // ==========================================
 
-        // 狀態變數
+        // --- 變數與狀態 ---
         let pyodide = null;
         let isModelLoaded = false;
-        let isTherapyMode = false;
+        let isTherapy = false;
+
+        // 1. 情緒滑動窗口 (Sliding Window)
+        const WINDOW_SIZE = 20; // 20個樣本 (約10秒，每0.5秒一次)
+        let emotionWindow = []; // 儲存 0(正向) 或 1(負向)
+
+        // 2. 行為追蹤
+        let lastTypingTime = Date.now();
+        let mouseDist = 0; // 每秒累積移動距離
+        let backspaceCount = 0; // 憤怒刪除計數
         
-        // 🚨 核心計時邏輯
-        let negativeTimeMs = 0; // 累積毫秒數
-        const THRESHOLD_MS = 10000; // 10秒觸發
-        const CHECK_INTERVAL = 500; // 每0.5秒檢查一次
+        // 3. 綜合壓力值 (0-100)
+        let stressScore = 0;
 
-        // 關卡
-        const levels = [
-            { 
-                t: "Level 1: 訊號連結", 
-                d: "駭客的第一步。請使用 print() 印出 'Hello Nexus'。", 
-                c: "print('Hello World')", 
-                check: (o) => o.includes("Hello Nexus") 
-            },
-            { 
-                t: "Level 2: 變數儲存", 
-                d: "定義一個變數 x 並設為 10，然後印出它。", 
-                c: "# 定義變數 x\n", 
-                check: (o) => o.trim() == "10" 
-            },
-            { 
-                t: "Level 3: 迴圈風暴", 
-                d: "使用 while 迴圈從 5 倒數到 1。", 
-                c: "count = 5\nwhile count > 0:\n    print(count)\n    # 記得減 1", 
-                check: (o) => o.includes("5") && o.includes("1") 
-            }
-        ];
-        let currLvl = 0;
-
-        // 初始化
+        // --- 初始化 ---
         async function init() {
-            // Python
             try {
                 pyodide = await loadPyodide();
-                document.getElementById('output').innerText = "Python 核心已載入。";
-            } catch(e) { console.error(e); }
+                document.getElementById('output').innerText = "Python Ready.";
+            } catch(e) {}
 
-            // Face API
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             await Promise.all([
                 faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_URL),
                 faceapi.nets.faceExpressionNet.loadFromUri(MODEL_URL)
             ]);
             isModelLoaded = true;
-            document.getElementById('emotion-val').innerText = "偵測中...";
 
-            // Webcam
             const video = document.getElementById('video');
             const stream = await navigator.mediaDevices.getUserMedia({ video: {} });
             video.srcObject = stream;
             
+            // 啟動兩個循環
             video.addEventListener('play', () => {
-                setInterval(detectLoop, CHECK_INTERVAL);
+                setInterval(detectEmotion, 500); // 0.5秒一次表情
+                setInterval(analyzeBehavior, 1000); // 1秒一次行為總結
             });
 
-            loadLevel(0);
+            // 滑鼠監聽
+            document.addEventListener('mousemove', (e) => {
+                mouseDist += Math.abs(e.movementX) + Math.abs(e.movementY);
+            });
         }
         init();
 
-        // 🎯 核心：情緒偵測與計時邏輯
-        async function detectLoop() {
-            if(!isModelLoaded || isTherapyMode) return; // 治療中不繼續累積
-
+        // --- 🧠 核心邏輯 A: 表情滑動窗口 ---
+        async function detectEmotion() {
+            if(!isModelLoaded || isTherapy) return;
             const video = document.getElementById('video');
             const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
+            
+            let isNegative = 0;
+            let label = "Neutral";
 
             if(detections.length > 0) {
                 const ex = detections[0].expressions;
                 const sorted = Object.entries(ex).sort((a,b) => b[1]-a[1]);
-                const emotion = sorted[0][0]; // happy, sad, neutral...
+                const topEmo = sorted[0][0];
+                label = topEmo;
 
-                updateUI(emotion);
-                handleStressTimer(emotion);
+                // 定義負面情緒
+                if(['sad', 'angry', 'fearful', 'disgusted'].includes(topEmo)) {
+                    isNegative = 1;
+                }
             }
+
+            // 更新滑動窗口
+            emotionWindow.push(isNegative);
+            if(emotionWindow.length > WINDOW_SIZE) emotionWindow.shift(); // 移除最舊的
+
+            // UI 更新
+            const emoText = document.getElementById('emo-val');
+            emoText.innerText = label;
+            emoText.className = isNegative ? "val bad" : "val";
         }
 
-        // 邏輯：處理 10 秒累積
-        function handleStressTimer(emotion) {
-            const badEmotions = ['sad', 'angry', 'fearful', 'disgusted'];
+        // --- 🧠 核心邏輯 B: 行為分析與壓力計算 ---
+        function analyzeBehavior() {
+            if(isTherapy) return;
+
+            const now = Date.now();
             
-            if (badEmotions.includes(emotion)) {
-                // 累積時間
-                negativeTimeMs += CHECK_INTERVAL;
-            } else if (emotion === 'happy') {
-                // 開心會快速消除壓力
-                negativeTimeMs = Math.max(0, negativeTimeMs - 2000); 
-            } else {
-                // 平靜會緩慢消除
-                negativeTimeMs = Math.max(0, negativeTimeMs - 500);
-            }
+            // 1. 計算表情負面率 (60% 規則)
+            const negCount = emotionWindow.reduce((a,b) => a+b, 0);
+            const negRatio = emotionWindow.length > 0 ? negCount / emotionWindow.length : 0;
 
-            // 更新 UI 進度條
-            const percent = Math.min(100, (negativeTimeMs / THRESHOLD_MS) * 100);
-            document.getElementById('stress-bar').style.width = percent + "%";
-            document.getElementById('timer-val').innerText = (negativeTimeMs/1000).toFixed(1) + "s";
+            // 2. 計算閒置時間 (秒)
+            const idleSeconds = (now - lastTypingTime) / 1000;
+            document.getElementById('idle-val').innerText = idleSeconds.toFixed(0) + "s";
 
-            // 觸發條件：超過 10 秒
-            if (negativeTimeMs >= THRESHOLD_MS) {
-                activateTherapyMode();
-            }
+            // 3. 計算滑鼠焦慮度 (假設 > 1000 像素/秒 且沒打字 = 焦慮遊走)
+            const isMouseJitter = (mouseDist > 1000 && idleSeconds > 5);
+            document.getElementById('mouse-val').innerText = mouseDist;
+            mouseDist = 0; // 重置下一秒的計數
+
+            // 4. 計算綜合壓力 (權重演算法)
+            let newStress = 0;
+
+            // 因素 A: 表情 (權重高)
+            if (negRatio >= 0.6) newStress += 60; // 只要 60% 時間臉臭，基礎壓力就高
+            else if (negRatio >= 0.3) newStress += 30;
+
+            // 因素 B: 卡關閒置 (Idle > 20s)
+            if (idleSeconds > 20) newStress += 20;
+
+            // 因素 C: 憤怒刪除 (Backspace Rage)
+            if (backspaceCount > 5) newStress += 40; // 瞬間暴增
+            
+            // 因素 D: 焦慮滑鼠
+            if (isMouseJitter) newStress += 15;
+
+            // 平滑過渡 (不要瞬間跳動太快)
+            stressScore = (stressScore * 0.7) + (newStress * 0.3);
+            
+            // 清理 Backspace 計數 (每秒遞減，模擬冷卻)
+            if(backspaceCount > 0) backspaceCount--;
+
+            updateStressUI();
         }
 
-        function updateUI(emotion) {
-            const el = document.getElementById('emotion-val');
-            const map = {
-                'happy': { t:'自信 (Flow)', c:'#00ff41' },
-                'neutral': { t:'專注', c:'#00ffff' },
-                'sad': { t:'挫折', c:'#ff3333' },
-                'angry': { t:'焦慮', c:'#ff3333' }
-            };
-            const s = map[emotion] || {t:emotion, c:'#fff'};
-            el.innerText = s.t;
-            el.style.color = s.c;
-        }
+        function updateStressUI() {
+            const bar = document.getElementById('stress-bar');
+            bar.style.width = Math.min(100, stressScore) + "%";
+            
+            if(stressScore < 40) bar.style.background = "#00e5ff";
+            else if(stressScore < 80) bar.style.background = "#ffaa00";
+            else bar.style.background = "#ff2a2a";
 
-        // 🚨 啟動治療模式
-        async function activateTherapyMode() {
-            isTherapyMode = true;
-            negativeTimeMs = 0; // 重置計時器
-            document.getElementById('stress-bar').style.width = "0%";
-
-            // UI 變化
-            document.getElementById('therapy-layer').style.display = 'flex';
-            document.getElementById('editor-area').style.filter = 'blur(10px)'; // 模糊背景
-            document.getElementById('btn-resume').style.opacity = '0'; // 先隱藏按鈕
-
-            // 呼叫 AI (Gemini)
-            const therapyMsgDiv = document.getElementById('ai-therapy-msg');
-            therapyMsgDiv.innerHTML = "💡 AI 正在分析緩解焦慮的最佳策略...";
-
-            const prompt = `
-            情況：一名正在學習 Python 的學生已經連續挫折超過 10 秒，系統強制暫停了學習。
-            任務：請你扮演一位幽默、溫暖的朋友，講一個短笑話，或者引導他做一次深呼吸。
-            限制：不要提程式碼！不要說教！字數 60 字以內。請用繁體中文。
-            `;
-
-            try {
-                const text = await fetchGemini(prompt);
+            // 觸發治療模式 (閾值 80)
+            if(stressScore > 80) {
+                let reasons = [];
+                // 判斷主因
+                const negRatio = emotionWindow.reduce((a,b) => a+b, 0) / emotionWindow.length;
+                if(negRatio >= 0.6) reasons.push("持續負面表情");
+                const idle = (Date.now() - lastTypingTime)/1000;
+                if(idle > 20) reasons.push("長時間停滯");
+                if(backspaceCount > 3) reasons.push("頻繁刪除代碼");
                 
-                // 打字機效果顯示 AI 回覆
-                typeWriterEffect(therapyMsgDiv, text, () => {
-                    // 講完話後，顯示「繼續」按鈕
-                    document.getElementById('btn-resume').style.opacity = '1';
-                    document.getElementById('btn-resume').style.cursor = 'pointer';
-                });
-
-            } catch(e) {
-                therapyMsgDiv.innerText = "深呼吸... 休息一下再回來。";
-                document.getElementById('btn-resume').style.opacity = '1';
+                triggerTherapy(reasons.join(" + "));
             }
+        }
+
+        // --- 輸入監聽 ---
+        function handleTyping() {
+            lastTypingTime = Date.now();
+        }
+        function handleKeyDown(e) {
+            if(e.key === 'Backspace') {
+                backspaceCount += 2; // 按一次加2分
+            }
+        }
+
+        // --- 治療模式邏輯 ---
+        async function triggerTherapy(reason) {
+            isTherapy = true;
+            document.getElementById('therapy-overlay').style.display = 'flex';
+            document.getElementById('editor-area').style.filter = 'blur(10px)';
+            document.getElementById('trigger-reason').innerText = reason || "綜合壓力過高";
+            document.getElementById('btn-resume').style.opacity = '0';
+
+            const aiDiv = document.getElementById('ai-therapy-text');
+            aiDiv.innerHTML = "AI 正在生成緩和方案...";
+
+            // 呼叫 Gemini
+            const prompt = `
+            使用者正在學習寫程式，系統偵測到高壓力反應。
+            原因：${reason}。
+            請你扮演一個幽默的 AI 夥伴：
+            1. 先對他的狀況表示理解 (例如：看來這段 Code 很難搞...)
+            2. 講一個超級短的冷笑話，或是給一個放鬆的小建議。
+            3. 不要教程式碼！只要讓他心情變好。
+            字數限制 50 字。繁體中文。
+            `;
+            
+            const reply = await callGemini(prompt);
+            typeWriter(aiDiv, reply, () => {
+                document.getElementById('btn-resume').style.opacity = '1';
+            });
+            
+            // 重置壓力值，避免一回來又馬上觸發
+            stressScore = 30;
+            emotionWindow = new Array(WINDOW_SIZE).fill(0); 
         }
 
         function closeTherapy() {
-            document.getElementById('therapy-layer').style.display = 'none';
+            document.getElementById('therapy-overlay').style.display = 'none';
             document.getElementById('editor-area').style.filter = 'none';
-            isTherapyMode = false;
-            addMsg('system', '系統恢復。請依照您的步調繼續。');
+            isTherapy = false;
+            lastTypingTime = Date.now(); // 重置閒置計時
         }
 
-        // --- Gemini API ---
-        async function askAI() {
-            const input = document.getElementById('user-input');
-            const txt = input.value;
-            if(!txt) return;
-            
-            addMsg('user', txt);
-            input.value = '';
-            
-            const code = document.getElementById('code').value;
-            const prompt = `
-            你是 Code Nexus 的 AI 導師。
-            當前關卡：${levels[currLvl].t}
-            學生程式碼：${code}
-            學生問題：${txt}
-            請用繁體中文簡短回答。
-            `;
-            
-            addMsg('ai', '...');
-            const reply = await fetchGemini(prompt);
-            // 移除最後一個 ... 訊息
-            document.querySelector('#chat-box .msg:last-child').remove();
-            addMsg('ai', marked.parse(reply));
-        }
-
-        async function fetchGemini(prompt) {
-            if(API_KEY.includes("請在此")) {
-                alert("請填入 API Key");
-                return "API Key Error";
-            }
+        // --- Gemini API & Utils ---
+        async function callGemini(text) {
+            if(API_KEY.includes("請在此")) return "請設定 API Key";
+            const url = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
             try {
-                const res = await fetch(API_URL, {
-                    method: 'POST',
+                const res = await fetch(url, {
+                    method: 'POST', 
                     headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+                    body: JSON.stringify({ contents: [{ parts: [{ text }] }] })
                 });
                 const data = await res.json();
                 return data.candidates[0].content.parts[0].text;
-            } catch(e) {
-                console.error(e);
-                return "連線錯誤，請檢查 API Key 或網路。";
-            }
+            } catch(e) { return "連線失敗，請深呼吸。"; }
         }
 
-        // --- 輔助功能 ---
-        function typeWriterEffect(element, text, callback) {
-            element.innerHTML = "";
-            let i = 0;
-            const speed = 50; 
-            function type() {
-                if (i < text.length) {
-                    element.innerHTML += text.charAt(i);
-                    i++;
-                    setTimeout(type, speed);
-                } else if (callback) {
-                    callback();
-                }
-            }
-            type();
+        async function sendChat() {
+            const input = document.getElementById('user-input');
+            const val = input.value;
+            if(!val) return;
+            
+            const box = document.getElementById('chat-box');
+            box.innerHTML += `<div class="msg user">${val}</div>`;
+            input.value = "";
+            
+            const code = document.getElementById('code').value;
+            const reply = await callGemini(`學生問：${val}\n程式碼：${code}\n請簡短回答。`);
+            box.innerHTML += `<div class="msg ai">${marked.parse(reply)}</div>`;
+            box.scrollTop = box.scrollHeight;
+        }
+
+        function typeWriter(el, text, cb) {
+            el.innerHTML = "";
+            let i=0;
+            const t = setInterval(() => {
+                el.innerHTML += text.charAt(i);
+                i++;
+                if(i >= text.length) { clearInterval(t); if(cb) cb(); }
+            }, 50);
         }
 
         async function runCode() {
-            const code = document.getElementById('code').value;
             const out = document.getElementById('output');
-            out.innerText = "執行中...";
+            out.innerText = "Running...";
             try {
                 let log = "";
-                pyodide.setStdout({ batched: (s) => log += s + "\n" });
-                await pyodide.runPythonAsync(code);
+                pyodide.setStdout({ batched: s => log += s + "\n" });
+                await pyodide.runPythonAsync(document.getElementById('code').value);
                 out.innerText = log;
-                
-                if(levels[currLvl].check(log)) {
-                    out.innerText += "\n✅ 通關成功！";
-                    document.getElementById('btn-next').style.display = 'inline-block';
-                }
-            } catch(e) {
-                out.innerText = "錯誤:\n" + e;
-            }
-        }
-
-        function nextLevel() {
-            if(currLvl < levels.length-1) {
-                currLvl++;
-                loadLevel(currLvl);
-            } else {
-                alert("恭喜完成所有訓練！");
-            }
-        }
-
-        function loadLevel(i) {
-            document.getElementById('lvl-title').innerText = levels[i].t;
-            document.getElementById('lvl-desc').innerText = levels[i].d;
-            document.getElementById('code').value = levels[i].c;
-            document.getElementById('btn-next').style.display = 'none';
-            document.getElementById('output').innerText = "";
-        }
-
-        function addMsg(role, html) {
-            const div = document.createElement('div');
-            div.className = `msg ${role}`;
-            div.innerHTML = html;
-            const box = document.getElementById('chat-box');
-            box.appendChild(div);
-            box.scrollTop = box.scrollHeight;
+            } catch(e) { out.innerText = e; }
         }
     </script>
 </body>
 </html>
-
