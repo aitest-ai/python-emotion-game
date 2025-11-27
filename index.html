@@ -2,19 +2,19 @@
 <html lang="zh-TW">
 <head>
     <meta charset="UTF-8">
-    <title>Code Nexus: AI 情感適應學習系統 (v2.1 Stable)</title>
+    <title>Code Nexus: AI 情感適應學習系統 (v2.2 Fix)</title>
     <!-- Pyodide (Python 執行環境) -->
     <script src="https://cdn.jsdelivr.net/pyodide/v0.23.4/full/pyodide.js"></script>
     <!-- Face-api.js (情緒偵測) -->
     <script src="https://cdn.jsdelivr.net/npm/face-api.js@0.22.2/dist/face-api.min.js"></script>
-    <!-- Markdown 解析 (讓 AI 回答更好看) -->
+    <!-- Markdown 解析 -->
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
     
     <style>
         :root {
             --bg-color: #0d1117;
             --text-color: #c9d1d9;
-            --accent-color: #00ff41; /* 駭客綠 */
+            --accent-color: #00ff41;
             --danger-color: #ff4444;
             --panel-bg: #161b22;
             --border-color: #30363d;
@@ -30,7 +30,6 @@
             overflow: hidden;
         }
 
-        /* --- 左側面板 (儀表板 & 聊天) --- */
         .panel-left {
             width: 320px;
             background: var(--panel-bg);
@@ -74,7 +73,6 @@
             transition: color 0.3s;
         }
 
-        /* 聊天視窗 */
         #chat-window {
             flex-grow: 1;
             background: #0d1117;
@@ -95,63 +93,24 @@
             word-wrap: break-word;
             line-height: 1.4;
         }
-        .msg.ai {
-            background: #1f6feb;
-            color: white;
-            align-self: flex-start;
-            border-top-left-radius: 2px;
-        }
-        .msg.user {
-            background: #238636;
-            color: white;
-            align-self: flex-end;
-            border-top-right-radius: 2px;
-        }
-        .msg.system {
-            background: #333;
-            color: #aaa;
-            align-self: center;
-            font-size: 0.8em;
-            text-align: center;
-        }
-        .msg p { margin: 0; } /* 修正 markdown 多餘邊距 */
+        .msg.ai { background: #1f6feb; color: white; align-self: flex-start; border-top-left-radius: 2px; }
+        .msg.user { background: #238636; color: white; align-self: flex-end; border-top-right-radius: 2px; }
+        .msg.system { background: #333; color: #aaa; align-self: center; font-size: 0.8em; text-align: center; }
+        .msg p { margin: 0; }
 
-        #chat-input-area {
-            display: flex;
-            gap: 5px;
-            flex-shrink: 0;
-        }
-        #chat-input {
-            flex-grow: 1;
-            background: #0d1117;
-            border: 1px solid var(--border-color);
-            color: white;
-            padding: 8px;
-            border-radius: 4px;
-        }
+        #chat-input-area { display: flex; gap: 5px; flex-shrink: 0; }
+        #chat-input { flex-grow: 1; background: #0d1117; border: 1px solid var(--border-color); color: white; padding: 8px; border-radius: 4px; }
 
-        /* --- 右側面板 (遊戲與程式碼) --- */
         .panel-right {
             flex-grow: 1;
             padding: 20px;
             display: flex;
             flex-direction: column;
-            position: relative; /* For overlay */
+            position: relative;
         }
 
-        /* 進度條 */
-        .progress-container {
-            display: flex;
-            gap: 5px;
-            margin-bottom: 15px;
-        }
-        .step {
-            flex-grow: 1;
-            height: 8px;
-            background: #333;
-            border-radius: 4px;
-            transition: 0.3s;
-        }
+        .progress-container { display: flex; gap: 5px; margin-bottom: 15px; }
+        .step { flex-grow: 1; height: 8px; background: #333; border-radius: 4px; transition: 0.3s; }
         .step.active { background: var(--accent-color); box-shadow: 0 0 10px var(--accent-color); }
         .step.done { background: #1f6feb; }
 
@@ -167,7 +126,6 @@
         .mission-desc { color: #8b949e; line-height: 1.5; }
         code { background: #333; padding: 2px 5px; border-radius: 3px; font-family: monospace; }
 
-        /* 編輯器區域 */
         .editor-container {
             flex-grow: 1;
             display: flex;
@@ -200,7 +158,6 @@
             border-top: 1px solid var(--border-color);
         }
 
-        /* 輸出區 */
         #output {
             height: 150px;
             background: #000;
@@ -212,16 +169,7 @@
             white-space: pre-wrap;
         }
 
-        /* 按鈕樣式 */
-        button {
-            padding: 8px 20px;
-            border-radius: 5px;
-            border: none;
-            cursor: pointer;
-            font-weight: bold;
-            transition: 0.2s;
-            font-family: inherit;
-        }
+        button { padding: 8px 20px; border-radius: 5px; border: none; cursor: pointer; font-weight: bold; transition: 0.2s; font-family: inherit; }
         .btn-run { background: #238636; color: white; }
         .btn-run:hover { background: #2ea043; }
         .btn-ai { background: #1f6feb; color: white; }
@@ -234,14 +182,13 @@
             100% { box-shadow: 0 0 0 0 rgba(0, 255, 65, 0); }
         }
 
-        /* --- 治療模式 (Therapy Mode) 遮罩 --- */
         #therapy-overlay {
             position: absolute;
             top: 0; left: 0; width: 100%; height: 100%;
             background: rgba(13, 17, 23, 0.9);
             backdrop-filter: blur(8px);
             z-index: 999;
-            display: none; /* 預設隱藏 */
+            display: none;
             flex-direction: column;
             justify-content: center;
             align-items: center;
@@ -269,7 +216,6 @@
 </head>
 <body>
 
-    <!-- 左側：AI 與 監控 -->
     <div class="panel-left">
         <h2 style="margin-top:0; color: var(--accent-color); text-align: center; letter-spacing: 2px;">NEXUS AI</h2>
         
@@ -297,10 +243,7 @@
         </div>
     </div>
 
-    <!-- 右側：遊戲主畫面 -->
     <div class="panel-right">
-        
-        <!-- 遮罩層：當情緒過於負面時顯示 -->
         <div id="therapy-overlay">
             <div class="therapy-content">
                 <div class="therapy-title">⚠️ 系統過熱警告</div>
@@ -335,25 +278,24 @@
 
     <script>
         // ================================================================
-        // 🔑 API KEY 設定區 (最重要！)
+        // 🔑 API KEY 設定區 (請在此填入)
         // ================================================================
         
-        // 請將下方的 "請在此填入你的全新API_KEY" 換成你剛剛申請的那一串亂碼
-        // 例如: const GEMINI_API_KEY = "AIzaSyD.......";
+        // 請填入你新申請的 Key
         const GEMINI_API_KEY = "AIzaSyA2k88qSlo4mcuWkjoLBf9Yeb-v4BXgaco"; 
 
+        // ⚠️ 修正重點：改用 gemini-2.5-flash，這通常比單寫 flash 更穩定
+        let currentModel = "gemini-2.5-flash";
         // ================================================================
 
-        // --- 變數初始化 ---
         let currentLevel = 0;
-        let stressCounter = 0; // 壓力累積值 (0-100)
+        let stressCounter = 0;
         let isTherapyMode = false;
         let currentEmotion = "neutral";
         let pyodide = null;
         let isModelLoaded = false;
         let emotionInterval = null;
 
-        // --- 關卡資料 ---
         const levels = [
             {
                 title: "Level 1: 數位世界的聲音",
@@ -375,11 +317,8 @@
             }
         ];
 
-        // --- 1. 系統初始化 ---
         async function initSystem() {
             const outputDiv = document.getElementById('output');
-            
-            // 1.1 載入 Python
             try {
                 pyodide = await loadPyodide();
                 outputDiv.innerText = ">>> Python 核心已啟動。\n>>> 等待指令...";
@@ -387,7 +326,6 @@
                 outputDiv.innerText = "Python 載入失敗: " + e;
             }
 
-            // 1.2 載入情緒模型 (CDN)
             const MODEL_URL = 'https://justadudewhohacks.github.io/face-api.js/models';
             try {
                 await Promise.all([
@@ -400,23 +338,18 @@
                 console.error("Model load failed", e);
                 document.getElementById('emotion-label').innerText = "模型載入失敗";
             }
-
-            // 1.3 啟動遊戲
             loadLevel(0);
             startVideo();
         }
         initSystem();
 
-        // --- 2. 視訊與情緒偵測 ---
         function startVideo() {
             navigator.mediaDevices.getUserMedia({ video: {} })
                 .then(stream => {
                     const video = document.getElementById('video');
                     video.srcObject = stream;
-                    
-                    // 當影片播放時開始偵測
                     video.addEventListener('play', () => {
-                        emotionInterval = setInterval(detectEmotion, 500); // 0.5秒一次
+                        emotionInterval = setInterval(detectEmotion, 500);
                     });
                 })
                 .catch(err => {
@@ -426,19 +359,14 @@
 
         async function detectEmotion() {
             if (!isModelLoaded || isTherapyMode) return;
-
             const video = document.getElementById('video');
-            // 確保 video 已經有畫面
             if (video.paused || video.ended || !video.readyState) return;
 
             const detections = await faceapi.detectAllFaces(video, new faceapi.TinyFaceDetectorOptions()).withFaceExpressions();
-            
             if (detections.length > 0) {
                 const expressions = detections[0].expressions;
-                // 找出數值最大的情緒
                 const sorted = Object.entries(expressions).sort((a, b) => b[1] - a[1]);
-                currentEmotion = sorted[0][0]; // happy, sad, etc.
-                
+                currentEmotion = sorted[0][0];
                 updateStatusUI(currentEmotion);
                 updateStressLevel(currentEmotion);
             }
@@ -459,29 +387,24 @@
             label.style.color = status.color;
         }
 
-        // --- 3. 壓力邏輯與治療模式 ---
         function updateStressLevel(emotion) {
-            // 簡單的壓力計算邏輯
             if (['sad', 'angry', 'fearful', 'disgusted'].includes(emotion)) {
-                stressCounter = Math.min(100, stressCounter + 5); // 增加壓力
+                stressCounter = Math.min(100, stressCounter + 5);
             } else if (emotion === 'happy') {
-                stressCounter = Math.max(0, stressCounter - 5); // 大幅減壓
+                stressCounter = Math.max(0, stressCounter - 5);
             } else {
-                stressCounter = Math.max(0, stressCounter - 2); // 中性情緒緩慢減壓
+                stressCounter = Math.max(0, stressCounter - 2);
             }
 
-            // 更新 UI 條
             const stressBar = document.getElementById('stress-bar');
             const stressText = document.getElementById('stress-meter');
             stressBar.style.width = stressCounter + "%";
             stressText.innerText = stressCounter + "%";
 
-            // 變色邏輯
-            if (stressCounter < 40) stressBar.style.background = "#00ff41"; // 綠
-            else if (stressCounter < 70) stressBar.style.background = "orange"; // 橘
-            else stressBar.style.background = "#ff4444"; // 紅
+            if (stressCounter < 40) stressBar.style.background = "#00ff41";
+            else if (stressCounter < 70) stressBar.style.background = "orange";
+            else stressBar.style.background = "#ff4444";
 
-            // 觸發治療模式 (閾值設為 70%)
             if (stressCounter >= 70 && !isTherapyMode) {
                 triggerTherapyMode();
             }
@@ -491,75 +414,48 @@
             isTherapyMode = true;
             document.getElementById('therapy-overlay').style.display = 'flex';
             document.getElementById('editor-container').style.filter = 'blur(5px)';
-            
             addMessage("system", "⚠️ 壓力值過高，已暫停學習進程。");
-            
-            // AI 主動介入
             callGeminiAI("Therapy_Trigger");
         }
 
         function endTherapyMode() {
             isTherapyMode = false;
-            stressCounter = 30; // 恢復到安全值
+            stressCounter = 30;
             document.getElementById('therapy-overlay').style.display = 'none';
             document.getElementById('editor-container').style.filter = 'none';
-            addMessage("system", "系統恢復正常。請依據您的步調繼續學習。");
+            addMessage("system", "系統恢復正常。");
         }
 
-        // --- 4. Gemini AI 串接 (Robust Version) ---
+        // --- Gemini AI 串接 (強化版：支援模型切換) ---
         async function callGeminiAI(triggerType = "User_Ask") {
-            // 檢查 API KEY 是否還沒填
             if (GEMINI_API_KEY.includes("請在此填入")) {
-                addMessage("ai", "❌ 錯誤：請先在程式碼中填入正確的 Google API Key 才能使用 AI 功能。");
+                addMessage("ai", "❌ 錯誤：請填入 API Key。");
                 return;
             }
 
-            const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${GEMINI_API_KEY}`;
+            const GEMINI_URL = `https://generativelanguage.googleapis.com/v1beta/models/${currentModel}:generateContent?key=${GEMINI_API_KEY}`;
             const userCode = document.getElementById('code-editor').value;
             
             let systemPrompt = "";
             let userPrompt = "";
 
             if (triggerType === "Therapy_Trigger") {
-                // 治療模式 Prompt
-                systemPrompt = `你是一個具備高度同理心的 AI 輔導員。現在學生的壓力指數過高，被迫暫停學習。
-                請完全不要再提程式碼！請講一個輕鬆的短笑話，或用溫柔的語氣安撫他。
-                請用繁體中文，字數在 50 字以內。`;
-                userPrompt = "我好累，壓力好大，不想學了。";
+                systemPrompt = `你是一個具備高度同理心的 AI 輔導員。現在學生的壓力指數過高。請完全不要再提程式碼！請講一個輕鬆的短笑話，或用溫柔的語氣安撫他。請用繁體中文，字數 50 字內。`;
+                userPrompt = "我好累，不想學了。";
             } else {
-                // 一般教學 Prompt
                 const input = document.getElementById('chat-input');
                 userPrompt = input ? input.value : "";
-                
-                // 如果是使用者按送出但沒打字，預設為「幫我看 Code」
-                if (triggerType === "User_Ask" && !userPrompt.trim()) {
-                    userPrompt = "請幫我看看目前的程式碼有沒有問題？";
-                } else if (triggerType === "User_Ask" && !userPrompt.trim()) {
-                    return; // 真的沒事就不傳
-                }
+                if (triggerType === "User_Ask" && !userPrompt.trim()) userPrompt = "請幫我看看程式碼有沒有問題？";
+                else if (triggerType === "User_Ask" && !userPrompt.trim()) return;
 
                 const levelInfo = levels[currentLevel];
-                systemPrompt = `你是一個賽博龐克風格的 AI 程式導師 NEXUS。
-                當前關卡：${levelInfo.title}
-                任務目標：${levelInfo.desc}
-                學生目前程式碼：
-                \`\`\`python
-                ${userCode}
-                \`\`\`
-                學生情緒狀態：${currentEmotion} (如果情緒是 sad/angry 請給予鼓勵)。
-                請用繁體中文回答。如果程式碼有錯，請給提示而非直接給答案。`;
+                systemPrompt = `你是賽博龐克風格的 AI 程式導師 NEXUS。當前關卡：${levelInfo.title}。任務：${levelInfo.desc}。學生程式碼：\`\`\`python\n${userCode}\n\`\`\`。學生情緒：${currentEmotion}。請用繁體中文指導。`;
             }
 
-            // UI 顯示
             if (triggerType !== "Therapy_Trigger") addMessage("user", userPrompt);
-            const loadingId = addMessage("ai", "⚡ 連線運算中...");
+            const loadingId = addMessage("ai", `⚡ [${currentModel}] 運算中...`);
 
-            // 建構 API 封包
-            const payload = {
-                contents: [{
-                    parts: [{ text: systemPrompt + "\nUser says: " + userPrompt }]
-                }]
-            };
+            const payload = { contents: [{ parts: [{ text: systemPrompt + "\nUser: " + userPrompt }] }] };
 
             try {
                 const response = await fetch(GEMINI_URL, {
@@ -570,16 +466,17 @@
 
                 const data = await response.json();
 
-                // 錯誤處理
                 if (!response.ok) {
                     console.error("API Error:", data);
                     let errorMsg = `連線錯誤 (${response.status})`;
-                    if (data.error && data.error.message) {
-                        errorMsg += `: ${data.error.message}`;
+                    if (response.status === 404 && currentModel.includes("flash")) {
+                        // 自動降級機制
+                        document.getElementById(loadingId).innerText = "⚠️ Flash 模型連線失敗，正在切換到 Gemini Pro...";
+                        currentModel = "gemini-pro";
+                        setTimeout(() => callGeminiAI(triggerType), 1000); // 重試
+                        return;
                     }
-                    if (data.error && data.error.message.includes("API key not valid")) {
-                        errorMsg = "API Key 無效，請檢查程式碼設定。";
-                    }
+                    if (data.error) errorMsg += `: ${data.error.message}`;
                     document.getElementById(loadingId).innerText = "❌ " + errorMsg;
                     return;
                 }
@@ -588,57 +485,38 @@
                     const aiText = data.candidates[0].content.parts[0].text;
                     document.getElementById(loadingId).innerHTML = marked.parse(aiText);
                 } else {
-                    document.getElementById(loadingId).innerText = "⚠️ AI 已讀取但未回傳內容。";
+                    document.getElementById(loadingId).innerText = "⚠️ AI 無回應。";
                 }
-
-                // 清空輸入框
                 if(document.getElementById('chat-input')) document.getElementById('chat-input').value = "";
 
             } catch (error) {
                 console.error("Fetch Error:", error);
-                document.getElementById(loadingId).innerText = "🔌 網路錯誤，無法連接 Google 伺服器。請檢查網路或 CORS 設定。";
+                document.getElementById(loadingId).innerText = "🔌 網路錯誤。";
             }
         }
 
-
-        // --- 5. 遊戲流程控制 ---
         async function runPython() {
             if (!pyodide) return;
             const code = document.getElementById('code-editor').value;
             const outputDiv = document.getElementById('output');
-            
             outputDiv.innerText = ">>> 執行中...\n";
             let resultOutput = "";
-
             try {
-                // 攔截標準輸出
-                pyodide.setStdout({ batched: (msg) => { 
-                    resultOutput += msg + "\n";
-                    outputDiv.innerText += msg + "\n"; 
-                }});
-                
+                pyodide.setStdout({ batched: (msg) => { resultOutput += msg + "\n"; outputDiv.innerText += msg + "\n"; }});
                 await pyodide.runPythonAsync(code);
-                
-                // 檢查過關條件
                 checkLevelClear(resultOutput);
-
             } catch (err) {
-                outputDiv.innerText += "\n[Runtime Error]: " + err;
-                // 如果出錯且情緒不好，自動呼叫 AI
-                if (['sad', 'angry'].includes(currentEmotion)) {
-                    callGeminiAI("User_Ask"); // 這裡可以改成傳入特定參數讓 AI 主動關心
-                }
+                outputDiv.innerText += "\n[Error]: " + err;
+                if (['sad', 'angry'].includes(currentEmotion)) callGeminiAI("User_Ask");
             }
         }
 
         function checkLevelClear(output) {
             const level = levels[currentLevel];
             if (level.checkSuccess(output)) {
-                outputDiv.innerText += "\n[SYSTEM]: ✅ 任務目標達成！";
+                outputDiv.innerText += "\n[SYSTEM]: ✅ 任務達成！";
                 document.getElementById('btn-next').style.display = 'inline-block';
-                
-                // 只有第一次過關時慶祝一下
-                addMessage("ai", `太棒了！你已完成 ${level.title}。點擊右下角按鈕進入下一關。`);
+                addMessage("ai", `太棒了！你已完成 ${level.title}。`);
             }
         }
 
@@ -647,47 +525,38 @@
                 currentLevel++;
                 loadLevel(currentLevel);
             } else {
-                alert("恭喜通關！所有訓練任務已完成。");
+                alert("恭喜通關！");
             }
         }
 
         function loadLevel(idx) {
-            // 更新 UI 進度
             document.querySelectorAll('.step').forEach((el, i) => {
                 el.classList.remove('active');
                 if (i < idx) el.classList.add('done');
                 if (i === idx) el.classList.add('active');
             });
-
             const level = levels[idx];
             document.getElementById('mission-title').innerHTML = level.title;
             document.getElementById('mission-desc').innerHTML = level.desc;
             document.getElementById('code-editor').value = level.defaultCode;
             document.getElementById('btn-next').style.display = 'none';
             document.getElementById('output').innerText = ">>> 等待執行...";
-            
-            addMessage("system", `正在載入 Level ${idx + 1} 資料...`);
+            addMessage("system", `載入 Level ${idx + 1}...`);
         }
 
-        // --- 輔助函式 ---
         function addMessage(role, text) {
             const div = document.createElement('div');
             div.className = `msg ${role}`;
             div.id = 'msg-' + Date.now();
-            div.innerHTML = text; // 允許 HTML (for markdown)
+            div.innerHTML = text;
             const chatWin = document.getElementById('chat-window');
             chatWin.appendChild(div);
-            chatWin.scrollTop = chatWin.scrollHeight; // 自動捲動到底部
+            chatWin.scrollTop = chatWin.scrollHeight;
             return div.id;
         }
 
-        function sendUserMessage() {
-            callGeminiAI("User_Ask");
-        }
-
-        function handleChatKey(e) {
-            if (e.key === 'Enter') sendUserMessage();
-        }
+        function sendUserMessage() { callGeminiAI("User_Ask"); }
+        function handleChatKey(e) { if (e.key === 'Enter') sendUserMessage(); }
 
     </script>
 </body>
